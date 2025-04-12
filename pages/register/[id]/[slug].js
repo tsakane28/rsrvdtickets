@@ -123,8 +123,11 @@ const RegisterPage = ({ event }) => {
 							<h2 className='text-2xl font-extrabold mb-4 text-center'>
 								Registered Successfully! 🎉
 							</h2>
-							<p className='text-center mb-6'>
+							<p className='text-center mb-3'>
 								Check your email for your ticket and event information.
+							</p>
+							<p className='text-center mb-6 text-sm text-gray-600'>
+								A PDF ticket has been attached to the email. You can download, print, or show it on your device at the event.
 							</p>
 							<button
 								className='px-4 py-2 bg-[#FFD95A] rounded-md'
