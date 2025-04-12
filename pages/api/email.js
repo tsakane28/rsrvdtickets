@@ -1,6 +1,7 @@
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import nodemailer from 'nodemailer';
 import { convertTo12HourFormat } from '../../utils/timeFormat';
+const { generateTicketPdf } = require('../../utils/pdfGenerator');
 
 // Create reusable transporter
 let transporter;
@@ -41,6 +42,17 @@ export default async function handler(req, res) {
 			return res.status(400).json({ success: false, message: 'Missing required fields' });
 		}
 
+		// Generate PDF ticket
+		const formattedTime = convertTo12HourFormat(time);
+		const pdfBuffer = await generateTicketPdf({
+			name,
+			passcode,
+			time: formattedTime,
+			date,
+			title,
+			qrCodeData: qrCode
+		});
+
 		// Create HTML content for the email
 		const htmlContent = `
 			<!DOCTYPE html>
@@ -55,9 +67,23 @@ export default async function handler(req, res) {
 					.header { background-color: #FFD95A; color: #333; padding: 20px; text-align: center; }
 					.content { padding: 20px; }
 					.footer { background-color: #f4f4f4; padding: 10px; text-align: center; font-size: 12px; }
-					img { max-width: 100%; height: auto; }
-					.qr-code { text-align: center; margin: 20px 0; }
-					.passcode { font-size: 20px; font-weight: bold; background-color: #f0f0f0; padding: 10px; text-align: center; }
+					.ticket-button { text-align: center; margin: 30px 0; }
+					.ticket-button a { 
+						background-color: #C07F00; 
+						color: white; 
+						padding: 12px 25px; 
+						text-decoration: none; 
+						border-radius: 5px;
+						font-weight: bold;
+						display: inline-block;
+					}
+					.ticket-info {
+						background-color: #f9f9f9;
+						border: 1px solid #ddd;
+						padding: 15px;
+						border-radius: 5px;
+						margin-bottom: 20px;
+					}
 				</style>
 			</head>
 			<body>
@@ -66,20 +92,19 @@ export default async function handler(req, res) {
 						<h1>You're registered for: ${title}</h1>
 					</div>
 					<div class="content">
-						<p><strong>Date:</strong> ${date}</p>
-						<p><strong>Time:</strong> ${convertTo12HourFormat(time)}</p>
-						<p><strong>Note:</strong> ${note || 'N/A'}</p>
-						<p><strong>Description:</strong> ${description || 'N/A'}</p>
-						<div class="passcode">Passcode: ${passcode}</div>
+						<div class="ticket-info">
+							<p><strong>Name:</strong> ${name}</p>
+							<p><strong>Date:</strong> ${date}</p>
+							<p><strong>Time:</strong> ${formattedTime}</p>
+							<p><strong>Note:</strong> ${note || 'N/A'}</p>
+							<p><strong>Description:</strong> ${description || 'N/A'}</p>
+							<p><strong>Passcode:</strong> ${passcode}</p>
+						</div>
 						
-						${
-							qrCode
-								? `<div class="qr-code">
-									<p><strong>Scan this QR code at the event:</strong></p>
-									<img src="${qrCode}" alt="QR Code" style="width:200px; border: 1px solid #ddd;">
-								  </div>`
-								: ""
-						}
+						<div class="ticket-button">
+							<p>Your ticket is attached to this email. You can download and print it or show it on your device at the event.</p>
+							<a href="cid:ticket.pdf">View Ticket</a>
+						</div>
 
 						${
 							flier_url && flier_url !== "No flier for this event"
@@ -98,25 +123,32 @@ export default async function handler(req, res) {
 			</html>
 		`;
 
-		// Create the email options with attachments for Gmail compatibility
+		// Create the email options with PDF ticket attachment
 		const mailOptions = {
 			from: '"RSRVD Events" <rsrvd@reserveddigitalbranding.com>',
 			to: email,
 			subject: `RSRVD Ticket: ${title}`,
 			html: htmlContent,
-			attachments: []
+			attachments: [
+				{
+					filename: `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_ticket.pdf`,
+					content: pdfBuffer,
+					contentType: 'application/pdf',
+					cid: 'ticket.pdf' // Content ID for referencing in the HTML
+				}
+			]
 		};
 
-		// If QR code exists, add it as an attachment and update the HTML to use the attachment cid
-		if (qrCode) {
-			const qrCodeAttachment = {
-				filename: 'qrcode.png',
-				path: qrCode,
-				cid: 'qrcode@rsrvd.com' // Content ID to reference the attachment in the HTML
-			};
-			mailOptions.attachments.push(qrCodeAttachment);
-			// Replace the QR code data URL with the Content ID reference
-			mailOptions.html = mailOptions.html.replace(qrCode, 'cid:qrcode@rsrvd.com');
+		// If flier URL exists, add it as an attachment
+		if (flier_url && flier_url !== "No flier for this event") {
+			mailOptions.attachments.push({
+				filename: 'event_flier.jpg',
+				path: flier_url,
+				cid: 'flier@rsrvd.com'
+			});
+			
+			// Replace the flier URL with the Content ID reference in the HTML
+			mailOptions.html = mailOptions.html.replace(flier_url, 'cid:flier@rsrvd.com');
 		}
 
 		// Send the email
