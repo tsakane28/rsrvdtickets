@@ -303,6 +303,7 @@ import {
 		passcode,
 		flier_url: flierURL,
 		qrCode,
+		event_id,
 		setSuccess,
 		setLoading,
 	  });

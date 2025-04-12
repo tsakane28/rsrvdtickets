@@ -54,7 +54,9 @@ export default async function handler(req, res) {
 		});
 
 		// Create the ticket URL for HTML version
-		const ticketUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://rsrvdtickets.vercel.app'}/api/ticket/${event_id}-${passcode}`;
+		const apiTicketUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://rsrvdtickets.vercel.app'}/api/ticket/${event_id}-${passcode}`;
+		// Create URL for the ticket page
+		const pageTicketUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://rsrvdtickets.vercel.app'}/ticket/${event_id}-${passcode}`;
 
 		// Create HTML content for the email
 		const htmlContent = `
@@ -117,7 +119,7 @@ export default async function handler(req, res) {
 						<p>Your ticket is attached to this email and can also be viewed online. You can download, print, or show it on your device at the event.</p>
 						
 						<div class="ticket-button">
-							<a href="${ticketUrl}" target="_blank">View Online Ticket</a>
+							<a href="${pageTicketUrl}" target="_blank">View Online Ticket</a>
 							<a href="cid:ticket.pdf" class="secondary">View PDF Ticket</a>
 						</div>
 
