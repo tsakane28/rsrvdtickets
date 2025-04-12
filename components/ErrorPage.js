@@ -7,7 +7,7 @@ const ErrorPage = () => {
   return (
 		<div>
 			<Head>
-				<title> 404 | EventTiz</title>
+				<title> 404 | RSRVD</title>
 				<meta
 					name='description'
 					content='An event ticketing system built with NextJS and Firebase'
