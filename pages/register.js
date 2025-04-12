@@ -25,7 +25,7 @@ const register = () => {
 	return (
 		<div>
 			<Head>
-				<title>Register | EventTiz</title>
+				<title>Register | RSRVD</title>
 				<meta
 					name='description'
 					content='An event ticketing system built with NextJS and Firebase'
