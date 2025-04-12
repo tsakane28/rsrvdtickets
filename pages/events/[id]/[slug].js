@@ -38,7 +38,7 @@ const ListEvent = ({ firebaseEvent }) => {
 	return (
 		<div>
 			<Head>
-				<title>{`${firebaseEvent.title} | EventTiz`}</title>
+				<title>{`${firebaseEvent.title} RSRVD`}</title>
 				<meta
 					name='description'
 					content='An event ticketing system built with NextJS and Firebase'
