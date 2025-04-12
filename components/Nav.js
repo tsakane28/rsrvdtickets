@@ -13,7 +13,7 @@ const Nav = () => {
 					className='text-xl font-bold text-gray-300
             '
 				>
-					EventTiz
+					EventTi
 				</h1>
 			</Link>
 			<div className='md:flex items-center justify-between hidden space-x-8'>
