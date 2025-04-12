@@ -1,0 +1,7 @@
+node_modules
+.next
+dataconnect
+dataconnect-generated
+firebase-debug.log
+firestore.rules
+firestore.indexes.json

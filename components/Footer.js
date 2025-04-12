@@ -11,7 +11,7 @@ const Footer = () => {
 					target='_blank'
 					className='text-[#705a2f]'
 				>
-					David Asaolu
+					RSRVD 
 				</a>
 			</p>
 			<p className='opacity-50 text-sm'>

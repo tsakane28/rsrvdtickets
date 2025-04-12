@@ -5,14 +5,16 @@ import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-	apiKey: "AIzaSyCiTxiWzxAOndzpeNyy3TuLeT9bxnM0ra4",
-	authDomain: "eventtiz.firebaseapp.com",
-	projectId: "eventtiz",
-	storageBucket: "eventtiz.appspot.com",
-	messagingSenderId: "600043838110",
-	appId: "1:600043838110:web:8e094eec1f41d6c353f98f",
-	measurementId: "G-25R0S4XSE6",
-};
+	apiKey: "AIzaSyARAkKkmqGsHS8JesYBFMFys9hz-qQrBYQ",
+	authDomain: "rsrvd-be799.firebaseapp.com",
+	databaseURL: "https://rsrvd-be799-default-rtdb.firebaseio.com",
+	projectId: "rsrvd-be799",
+	storageBucket: "rsrvd-be799.firebasestorage.app",
+	messagingSenderId: "920784334197",
+	appId: "1:920784334197:web:5a5a829458365f3536b73c",
+	measurementId: "G-B84Y7H1CG0"
+  };
+
 
 // Initialize Firebase
 let app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
