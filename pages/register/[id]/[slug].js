@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FaUserAlt } from "react-icons/fa";
 import { HiMail } from "react-icons/hi";
 import { doc, getDoc } from "@firebase/firestore";
-import db from "../../../utils/firebase";
+import { db } from "../../../utils/firebase";
 import { registerAttendee } from "../../../utils/util";
 import { useRouter } from "next/router";
 import RegClosed from "../../../components/RegClosed";

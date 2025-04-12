@@ -6,7 +6,7 @@ import { BsFillShareFill } from "react-icons/bs";
 import Attendees from "../../../components/Attendees";
 import { useRouter } from "next/router";
 import { doc, getDoc } from "@firebase/firestore";
-import db from "../../../utils/firebase";
+import { db } from "../../../utils/firebase";
 import ShareEventModal from "../../../components/ShareEventModal";
 import ErrorPage from "../../../components/ErrorPage";
 
