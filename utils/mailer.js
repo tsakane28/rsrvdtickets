@@ -11,21 +11,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-/**
- * Sends an email to the recipient with event details.
- * @param {Object} params - The parameters for the email.
- * @param {string} params.name - The recipient's name.
- * @param {string} params.email - The recipient's email address.
- * @param {string} params.title - The event title.
- * @param {string} params.time - The event time.
- * @param {string} params.date - The event date.
- * @param {string} params.note - Additional notes.
- * @param {string} params.description - Event description.
- * @param {string} params.passcode - Event passcode.
- * @param {string} [params.flier_url] - URL of the event flier (optional).
- * @param {string} [params.qrCode] - Base64 QR code (optional).
- * @returns {Promise<boolean>} - Returns true if the email was sent successfully, false otherwise.
- */
 export const sendEmail = async ({
   name,
   email,
