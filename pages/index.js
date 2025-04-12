@@ -3,6 +3,8 @@ import Nav from "../components/Nav";
 import Hero from "../components/Hero";
 import HomeSection from "../components/HomeSection";
 import Footer from "../components/Footer";
+import dotenv from 'dotenv';
+dotenv.config();
 
 export default function Home() {
 	return (
