@@ -22,27 +22,9 @@ import {
 	where,
 	arrayUnion,
   } from "@firebase/firestore";
-  import { initializeApp } from "firebase/app";
-  import { getAuth } from "firebase/auth";
-  import { getFirestore } from "firebase/firestore";
-  import { getStorage } from "firebase/storage";
   import { generateQRCode } from "../utils/qr"; // Ensure this path is correct
   import { convertTo12HourFormat } from "../utils/timeFormat"; // Import the time format function
-  
-  // Initialize Firebase
-  const firebaseConfig = {
-	apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-	authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-	projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-	storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-	messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-	appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  };
-  
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  const storage = getStorage(app);
+  import { auth, db, storage } from "../utils/firebase"; // Import Firebase services from firebase.js
   
   // Utility functions
   export const sendEmail = async ({
@@ -117,7 +99,8 @@ import {
 	description,
 	note,
 	flier,
-	router
+	router,
+	setButtonClicked
   ) => {
 	try {
 	  const docRef = await addDoc(collection(db, "events"), {
@@ -136,22 +119,31 @@ import {
 	  const imageRef = ref(storage, `events/${docRef.id}/image`);
   
 	  if (flier !== null) {
-		await uploadString(imageRef, flier, "data_url").then(async () => {
+		try {
+		  await uploadString(imageRef, flier, "data_url");
 		  const downloadURL = await getDownloadURL(imageRef);
 		  await updateDoc(doc(db, "events", docRef.id), {
 			flier_url: downloadURL,
 		  });
   
 		  successMessage("Event created! 🎉");
+		  if (setButtonClicked) setButtonClicked(false);
 		  router.push("/dashboard");
-		});
+		} catch (uploadError) {
+		  console.error("Error uploading image:", uploadError);
+		  errorMessage("Event created but failed to upload image ❌");
+		  if (setButtonClicked) setButtonClicked(false);
+		  router.push("/dashboard");
+		}
 	  } else {
 		successMessage("Event created! 🎉");
+		if (setButtonClicked) setButtonClicked(false);
 		router.push("/dashboard");
 	  }
 	} catch (error) {
 	  console.error("Error adding event:", error);
 	  errorMessage("Failed to create event ❌");
+	  if (setButtonClicked) setButtonClicked(false);
 	}
   };
   
