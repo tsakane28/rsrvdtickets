@@ -20,10 +20,10 @@ exports.generateTicketPdf = async (options) => {
   
   return new Promise((resolve, reject) => {
     try {
-      // Create a document
+      // Create a document with custom size for ticket (narrower and shorter than A4)
       const doc = new PDFDocument({
-        size: 'A4',
-        margin: 50,
+        size: [595, 400], // Width x Height in points (smaller than A4)
+        margin: 0, // No margins, we'll control padding manually
         info: {
           Title: `${title} - Ticket`,
           Author: 'RSRVD Events',
@@ -39,108 +39,105 @@ exports.generateTicketPdf = async (options) => {
         resolve(pdfData);
       });
       
-      // Add content to the ticket
+      // Background and border styling
+      doc.rect(0, 0, doc.page.width, doc.page.height)
+         .lineWidth(1)
+         .stroke();
       
-      // Title and header
+      // Left separator line
+      doc.moveTo(235, 0)
+         .lineTo(235, doc.page.height)
+         .lineWidth(1)
+         .stroke();
+      
+      // Right separator line
+      doc.moveTo(560, 0)
+         .lineTo(560, doc.page.height)
+         .lineWidth(1)
+         .stroke();
+      
+      // Header section
+      doc.rect(235, 0, 325, 130)
+         .lineWidth(1)
+         .stroke();
+      
+      // RSRVD EVENT TICKET Header
       doc.fontSize(24)
          .fillColor('#000')
          .font('Helvetica-Bold')
-         .text('RSRVD EVENT TICKET', { align: 'center' });
-      
-      doc.moveDown();
-      
-      // Event title
-      doc.fontSize(18)
-         .font('Helvetica-Bold')
-         .text(title, { align: 'center' });
-      
-      doc.moveDown(2);
-      
-      // QR Code (centered)
-      if (qrCodeData) {
-        const qrImage = qrCodeData.replace(/^data:image\/(png|jpg|jpeg);base64,/, '');
-        const imgWidth = 200;
-        const imgHeight = 200;
-        
-        // Center the QR code on the page
-        const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-        const xPosition = doc.page.margins.left + (pageWidth - imgWidth) / 2;
-        
-        doc.image(Buffer.from(qrImage, 'base64'), xPosition, doc.y, {
-          width: imgWidth,
-          height: imgHeight
-        });
-        
-        doc.moveDown(0.5);
-      }
-      
-      // Draw a border around the QR code
-      const borderWidth = 220;
-      const borderHeight = 220;
-      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const xPosition = doc.page.margins.left + (pageWidth - borderWidth) / 2;
-      const yPosition = doc.y - 210;
-      
-      doc.lineWidth(3)
-         .rect(xPosition - 10, yPosition - 10, borderWidth + 20, borderHeight + 20)
-         .stroke();
-      
-      doc.moveDown(2);
-      
-      // Ticket details in a two-column layout
-      const detailsY = doc.y;
-      
-      // Left column
-      doc.font('Helvetica-Bold')
-         .fontSize(14)
-         .text('Name:', doc.page.margins.left, detailsY);
-      
-      doc.font('Helvetica')
-         .fontSize(14)
-         .text(name, doc.page.margins.left + 90, detailsY);
-      
-      doc.font('Helvetica-Bold')
-         .fontSize(14)
-         .text('Passcode:', doc.page.margins.left, detailsY + 30);
-         
-      doc.font('Helvetica')
-         .fontSize(14)
-         .text(passcode, doc.page.margins.left + 90, detailsY + 30);
-      
-      // Right column
-      const rightColumnX = doc.page.width / 2 + 20;
-      
-      doc.font('Helvetica-Bold')
-         .fontSize(14)
-         .text('Time:', rightColumnX, detailsY);
-         
-      doc.font('Helvetica')
-         .fontSize(14)
-         .text(time, rightColumnX + 50, detailsY);
-      
-      doc.font('Helvetica-Bold')
-         .fontSize(14)
-         .text('Date:', rightColumnX, detailsY + 30);
-         
-      doc.font('Helvetica')
-         .fontSize(14)
-         .text(date, rightColumnX + 50, detailsY + 30);
-      
-      // Footer
-      doc.moveDown(5);
-      doc.fontSize(10)
-         .fillColor('#555')
-         .font('Helvetica')
-         .text('This ticket is your entry pass to the event. Please present this ticket (printed or digital) at the entrance.', {
-           align: 'center',
-           width: 400,
-           height: 100
+         .text('RSRVD EVENT TICKET', 235, 50, {
+           width: 325,
+           align: 'center'
          });
       
-      doc.moveDown();
-      doc.fontSize(10)
-         .text(`Generated on ${new Date().toLocaleDateString()}`, {
+      // Event title - positioned directly below the header
+      doc.fontSize(20)
+         .font('Helvetica-Bold')
+         .text(title, 235, 100, {
+           width: 325,
            align: 'center'
+         });
+      
+      // QR Code - centered in the main content area
+      if (qrCodeData) {
+        const qrImage = qrCodeData.replace(/^data:image\/(png|jpg|jpeg);base64,/, '');
+        
+        // Draw QR code in the center of the ticket
+        doc.image(Buffer.from(qrImage, 'base64'), 297, 155, {
+          width: 200,
+          height: 200
+        });
+      }
+      
+      // Ticket details - left side
+      doc.font('Helvetica-Bold')
+         .fontSize(14)
+         .text('Name:', 65, 180);
+      
+      doc.font('Helvetica')
+         .fontSize(14)
+         .text(name, 185, 180, { align: 'right' });
+      
+      doc.font('Helvetica-Bold')
+         .fontSize(14)
+         .text('Passcode:', 65, 220);
+         
+      doc.font('Helvetica')
+         .fontSize(14)
+         .text(passcode, 185, 220, { align: 'right' });
+      
+      // Ticket details - right side
+      doc.font('Helvetica-Bold')
+         .fontSize(14)
+         .text('Time:', 435, 180);
+         
+      doc.font('Helvetica')
+         .fontSize(14)
+         .text(time, 530, 180, { align: 'right' });
+      
+      doc.font('Helvetica-Bold')
+         .fontSize(14)
+         .text('Date:', 435, 220);
+         
+      doc.font('Helvetica')
+         .fontSize(14)
+         .text(date, 530, 220, { align: 'right' });
+      
+      // Footer with instructions
+      doc.fontSize(8)
+         .fillColor('#555')
+         .font('Helvetica')
+         .text('This ticket is your entry pass to the event. Please present this ticket (printed or digital) at the entrance.', 
+           260, 360, {
+           width: 300,
+           align: 'right'
+         });
+      
+      // Generation date
+      doc.fontSize(8)
+         .text(`Generated on ${new Date().toLocaleDateString()}`, 260, 380, {
+           width: 300,
+           align: 'right'
          });
       
       // Finalize the PDF
