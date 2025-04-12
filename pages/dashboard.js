@@ -34,7 +34,7 @@ const dashboard = () => {
 	return (
 		<div>
 			<Head>
-				<title>Dashboard | EventTiz</title>
+				<title>Dashboard | RSRVD</title>
 				<meta
 					name='description'
 					content='An event ticketing system built with NextJS and Firebase'
