@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { BsFillShareFill } from "react-icons/bs";
 import { MdDelete } from "react-icons/md";
-import { convertTo12HourFormat } from "../utils/util";
+import { convertTo12HourFormat } from "../utils/timeFormat";
 import ShareEventModal from "./ShareEventModal";
 import { deleteEvent } from '../utils/util';
 
