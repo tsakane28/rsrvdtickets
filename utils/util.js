@@ -24,7 +24,6 @@ import {
   } from "@firebase/firestore";
   import { initializeApp } from "firebase/app";
   import { getAuth, getFirestore, getStorage } from "firebase/app";
-  import emailjs from "@emailjs/browser";
   import nodemailer from "nodemailer";
   import { generateQRCode } from "@/utils/qr"; // Ensure this path is correct
   import { convertTo12HourFormat } from "@/utils/timeFormat"; // Import the time format function
@@ -48,7 +47,7 @@ import {
   const transporter = nodemailer.createTransport({
 	host: process.env.EMAIL_HOST,
 	port: process.env.EMAIL_PORT,
-	secure: false,
+	secure: false, // Use true if connecting to port 465
 	auth: {
 	  user: process.env.EMAIL_USER,
 	  pass: process.env.EMAIL_PASS,
@@ -56,7 +55,7 @@ import {
   });
   
   // Utility functions
-  export const sendEmail = async (
+  export const sendEmail = async ({
 	name,
 	email,
 	title,
@@ -65,13 +64,9 @@ import {
 	note,
 	description,
 	passcode,
-	flier_url,
-	setSuccess,
-	setLoading,
-	qrCode = null // Optional base64 QR code
-  ) => {
-	setLoading(true);
-  
+	flier_url = "No flier for this event", // Default to no flier if not provided
+	qrCode = null, // Optional base64 QR code
+  }) => {
 	const htmlContent = `
 	  <h2>You're registered for: ${title}</h2>
 	  <p><strong>Date:</strong> ${date}</p>
@@ -98,13 +93,11 @@ import {
 		subject: `RSRVD Ticket: ${title}`,
 		html: htmlContent,
 	  });
-  
-	  setLoading(false);
-	  setSuccess(true);
+	  console.log("✅ Email sent to", email);
+	  return true;
 	} catch (error) {
-	  console.error("❌ Email error:", error);
-	  setLoading(false);
-	  alert("Failed to send email: " + error.message);
+	  console.error("❌ Failed to send email:", error);
+	  return false;
 	}
   };
   
@@ -283,29 +276,29 @@ import {
 			? firebaseEvent.flier_url
 			: "No flier for this event";
   
-		  await sendEmail(
+		  await sendEmail({
 			name,
 			email,
-			firebaseEvent.title,
-			firebaseEvent.time,
-			firebaseEvent.date,
-			firebaseEvent.note,
-			firebaseEvent.description,
+			title: firebaseEvent.title,
+			time: firebaseEvent.time,
+			date: firebaseEvent.date,
+			note: firebaseEvent.note,
+			description: firebaseEvent.description,
 			passcode,
-			flierURL,
-			setSuccess,
-			setLoading,
-			qrCode
-		  );
+			flier_url: flierURL,
+			qrCode,
+		  });
+  
+		  setSuccess(true);
 		} else {
-		  setLoading(false);
 		  errorMessage("User already registered ❌");
 		}
 	  }
 	} catch (error) {
 	  console.error("Error registering attendee:", error);
-	  setLoading(false);
 	  errorMessage("Failed to register attendee ❌");
+	} finally {
+	  setLoading(false);
 	}
   };
   
