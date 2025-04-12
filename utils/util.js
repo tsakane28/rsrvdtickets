@@ -25,8 +25,9 @@ import {
   import { initializeApp } from "firebase/app";
   import { getAuth, getFirestore, getStorage } from "firebase/app";
   import nodemailer from "nodemailer";
-  import { generateQRCode } from "@/utils/qr"; // Ensure this path is correct
-  import { convertTo12HourFormat } from "@/utils/timeFormat"; // Import the time format function
+  import { generateQRCode } from "../utils/qr";
+  import { convertTo12HourFormat } from "../utils/timeFormat";
+
   
   // Initialize Firebase
   const firebaseConfig = {
