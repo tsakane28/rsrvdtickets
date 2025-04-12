@@ -52,7 +52,7 @@ const Nav = () => {
 							<a href='https://github.com/tsakane28' target='_blank'>
 								<BsGithub className='text-white text-2xl hover:text-[#C07F00]' />
 							</a>
-							<a href='https://twitter.com/dayvid_JS' target='_blank'>
+							<a href='https://twitter.com/' target='_blank'>
 								<BsTwitter className='text-white text-2xl hover:text-[#C07F00]' />
 							</a>
 						</div>
