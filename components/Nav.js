@@ -23,7 +23,7 @@ const Nav = () => {
 				<Link href='/register' className='text-gray-400 hover:text-white'>
 					Register
 				</Link>
-				<a href='https://github.com/ts' target='_blank'>
+				<a href='https://github.com/tsa' target='_blank'>
 					<BsGithub className='text-gray-400 text-2xl hover:text-[#C07F00]' />
 				</a>
 			</div>
