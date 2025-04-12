@@ -14,7 +14,6 @@ const Footer = () => {
 					RSRVD 
 				</a>
 			</p>
-			
 			<p className='opacity-50 text-sm'>
 				&copy; Copyright {new Date().getFullYear()}
 			</p>
