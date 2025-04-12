@@ -7,7 +7,7 @@ const Footer = () => {
 				{" "}
 				Powered by{" "}
 				<a
-					href='https://github.com/tsaka'
+					href='https://github.com/tsakan'
 					target='_blank'
 					className='text-[#705a2f]'
 				>
