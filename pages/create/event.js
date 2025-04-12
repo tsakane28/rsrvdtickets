@@ -46,7 +46,8 @@ const event = () => {
 			description,
 			note,
 			flier,
-			router
+			router,
+			setButtonClicked
 		);
 	};
 
