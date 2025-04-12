@@ -116,7 +116,7 @@ const register = () => {
 							target='_blank'
 							className='text-gray-100'
 						>
-							Built by David Asaolu
+							Built by RSRVD
 						</a>
 					</div>
 				</div>
