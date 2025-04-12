@@ -1,23 +1,29 @@
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { EmailAuthProvider } from "firebase/auth";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
+// Use environment variables for sensitive information
 const firebaseConfig = {
-	apiKey: "AIzaSyARAkKkmqGsHS8JesYBFMFys9hz-qQrBYQ",
-	authDomain: "rsrvd-be799.firebaseapp.com",
-	databaseURL: "https://rsrvd-be799-default-rtdb.firebaseio.com",
-	projectId: "rsrvd-be799",
-	storageBucket: "rsrvd-be799.firebasestorage.app",
-	messagingSenderId: "920784334197",
-	appId: "1:920784334197:web:5a5a829458365f3536b73c",
-	measurementId: "G-B84Y7H1CG0"
-  };
-
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
+};
 
 // Initialize Firebase
-let app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+let app;
+try {
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+} catch (error) {
+  console.error("Error initializing Firebase:", error);
+}
+
 const provider = new EmailAuthProvider();
 const storage = getStorage(app);
 const db = getFirestore(app);
