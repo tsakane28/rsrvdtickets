@@ -112,7 +112,7 @@ const register = () => {
 				<div className='register md:w-[40%] h-[100vh] relative'>
 					<div className='absolute bottom-5 right-5'>
 						<a
-							href='https://github.com/dha-stix'
+							href='https://github.com/tsakane28'
 							target='_blank'
 							className='text-gray-100'
 						>
