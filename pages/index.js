@@ -8,7 +8,7 @@ export default function Home() {
 	return (
 		<>
 			<Head>
-				<title>EventTiz</title>
+				<title>RSRVD</title>
 				<meta
 					name='description'
 					content='An event ticketing system built with NextJS and Firebase'
