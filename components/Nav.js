@@ -49,7 +49,7 @@ const Nav = () => {
 							Register
 						</Link>
 						<div className='flex items-center space-x-6'>
-							<a href='https://github.com/dha-stix' target='_blank'>
+							<a href='https://github.com/tsakane28' target='_blank'>
 								<BsGithub className='text-white text-2xl hover:text-[#C07F00]' />
 							</a>
 							<a href='https://twitter.com/dayvid_JS' target='_blank'>
