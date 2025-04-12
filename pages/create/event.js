@@ -63,7 +63,7 @@ const event = () => {
 	return (
 		<div>
 			<Head>
-				<title>Create New Event | EventTiz</title>
+				<title>Create New Event | RSRVD</title>
 				<meta
 					name='description'
 					content='An event ticketing system built with NextJS and Firebase'
