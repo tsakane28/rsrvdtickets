@@ -7,7 +7,7 @@ const Footer = () => {
 				{" "}
 				Powered by{" "}
 				<a
-					href='https://github.com/dha-stix'
+					href='https://github.com/ts'
 					target='_blank'
 					className='text-[#705a2f]'
 				>
