@@ -3,7 +3,6 @@ import Head from "next/head";
 import Link from "next/link";
 import { HiMail } from "react-icons/hi";
 import { AiTwotoneLock, AiFillCheckCircle } from "react-icons/ai";
-import { firebaseCreateUser } from "../utils/util";
 import { useRouter } from "next/router";
 import ReCAPTCHA from "react-google-recaptcha";
 
@@ -14,13 +13,29 @@ const Register = () => {
   const [recaptchaVerified, setRecaptchaVerified] = useState(false);
   const router = useRouter();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (password === cpassword && recaptchaVerified) {
-      firebaseCreateUser(email, password, router);
-      setEmail("");
-      setPassword("");
-      setCPassword("");
+      try {
+        const res = await fetch("/api/register", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          router.push("/login");
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error("Error registering user:", error);
+        alert("Failed to register. Please try again.");
+      }
     } else if (!recaptchaVerified) {
       alert("Please verify reCAPTCHA.");
     }
