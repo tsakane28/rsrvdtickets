@@ -4,18 +4,16 @@ import Link from "next/link";
 import { HiMail } from "react-icons/hi";
 import { AiTwotoneLock, AiFillCheckCircle } from "react-icons/ai";
 import { useRouter } from "next/router";
-import ReCAPTCHA from "react-google-recaptcha";
 
 const Register = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [cpassword, setCPassword] = useState("");
-  const [recaptchaVerified, setRecaptchaVerified] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (password === cpassword && recaptchaVerified) {
+    if (password === cpassword) {
       try {
         const res = await fetch("/api/register", {
           method: "POST",
@@ -36,13 +34,7 @@ const Register = () => {
         console.error("Error registering user:", error);
         alert("Failed to register. Please try again.");
       }
-    } else if (!recaptchaVerified) {
-      alert("Please verify reCAPTCHA.");
     }
-  };
-
-  const handleVerify = (value) => {
-    setRecaptchaVerified(value);
   };
 
   return (
@@ -112,10 +104,6 @@ const Register = () => {
             {password !== cpassword && (
               <p className="text-red-500 mb-2">Password does not match</p>
             )}
-            <ReCAPTCHA
-              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
-              onChange={handleVerify}
-            />
             <button
               type="submit"
               className="bg-[#FFD95A] p-3 font-medium hover:bg-[#C07F00] hover:text-[#FFF8DE] mb-3 rounded-md"
