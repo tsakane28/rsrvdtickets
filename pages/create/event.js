@@ -121,7 +121,7 @@ const event = () => {
 						required
 						value={venue}
 						onChange={(e) => setVenue(e.target.value)}
-						placeholder='Plot Address, Lagos, Nigeria'
+						placeholder='Plot Address, Harare, Zimbabwe'
 					/>
 					<label htmlFor='description'>
 						Event Description <span className='text-gray-500'>(optional)</span>
