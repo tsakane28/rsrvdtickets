@@ -30,18 +30,82 @@ const RegisterPage = ({ event }) => {
 	const [loading, setLoading] = useState(false);
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
+	const [showPayment, setShowPayment] = useState(false);
+	const [paymentComplete, setPaymentComplete] = useState(false);
 	const { query } = useRouter();
 
 	const handleSubmit = (e) => {
 		e.preventDefault();
 		
-		// Debug the event_id
-		console.log("Submitting registration with event_id:", query.id);
-		
-		registerAttendee(name, email, query.id, setSuccess, setLoading);
-		setEmail("");
-		setName("");
+		// Show payment form instead of immediately registering
+		setShowPayment(true);
 	};
+	
+	const handlePaymentSuccess = async () => {
+		// Verify payment with our API endpoint
+		try {
+			// In a real implementation, these values would come from PayPal
+			const verifyResponse = await fetch('/api/verify-payment', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					paymentId: 'sample-payment-id',
+					payerId: 'sample-payer-id',
+					orderId: 'sample-order-id',
+				}),
+			});
+
+			const verifyData = await verifyResponse.json();
+			
+			if (verifyData.success) {
+				// Only register attendee after payment is verified
+				console.log("Payment verified successfully, registering with event_id:", query.id);
+				setPaymentComplete(true);
+				setLoading(true);
+				
+				// Create payment info object from verified payment
+				const paymentInfo = {
+					paymentId: 'sample-payment-id', // In real app, use actual PayPal paymentId
+					amount: verifyData.details.amount,
+					currency: verifyData.details.currency,
+					timestamp: new Date().toISOString(),
+					status: verifyData.details.status,
+					paid: true
+				};
+				
+				// Pass payment info to registerAttendee
+				registerAttendee(name, email, query.id, setSuccess, setLoading, paymentInfo);
+				setEmail("");
+				setName("");
+			} else {
+				alert("Payment verification failed: " + verifyData.message);
+				setPaymentComplete(false);
+			}
+		} catch (error) {
+			console.error("Payment verification error:", error);
+			alert("Payment verification error: " + error.message);
+			setPaymentComplete(false);
+		}
+	};
+	
+	// Monitor payment callbacks from PayPal
+	const handlePayPalMessage = (event) => {
+		// Check if the message is from PayPal and payment was successful
+		if (event.data === 'paypal-payment-success') {
+			handlePaymentSuccess();
+		}
+	};
+	
+	// Listen for messages (for PayPal callback)
+	React.useEffect(() => {
+		window.addEventListener('message', handlePayPalMessage);
+		return () => {
+			window.removeEventListener('message', handlePayPalMessage);
+		};
+	}, []);
+	
 	if (loading) {
 		return <Loading title='Generating your ticket🤞🏼' />;
 	}
@@ -66,43 +130,94 @@ const RegisterPage = ({ event }) => {
 			</Head>
 			<main className='w-full flex items-center justify-between min-h-[100vh] relative'>
 				<div className='md:w-[60%] w-full flex flex-col items-center justify-center min-h-[100vh] px-[30px] py-[30px] relative'>
-					<h2 className='text-2xl font-medium mb-3'>Get your ticket 🎉</h2>
-					<form
-						className='w-full flex flex-col justify-center'
-						onSubmit={handleSubmit}
-					>
-						<label htmlFor='name'>Full name</label>
-						<div className='w-full relative'>
-							<input
-								type='text'
-								name='name'
-								value={name}
-								onChange={(e) => setName(e.target.value)}
-								className='border px-10 py-2 mb-3 rounded-md w-full'
-								required
-							/>
-							<FaUserAlt className=' absolute left-4 top-3 text-gray-300' />
-						</div>
-
-						<label htmlFor='email'>Email address</label>
-						<div className='w-full relative'>
-							<input
-								type='email'
-								name='email'
-								value={email}
-								onChange={(e) => setEmail(e.target.value)}
-								className='border px-10 py-2 mb-3 rounded-md w-full'
-								required
-							/>
-							<HiMail className=' absolute left-4 top-3 text-gray-300 text-xl' />
-						</div>
-						<button
-							type='submit'
-							className='bg-[#FFD95A] p-3 font-medium hover:bg-[#C07F00] hover:text-[#FFF8DE] mb-3 rounded-md'
+					<h2 className='text-2xl font-medium mb-3'>
+						{showPayment ? 'Complete Payment to Get Your Ticket 💳' : 'Get your ticket 🎉'}
+					</h2>
+					
+					{!showPayment ? (
+						<form
+							className='w-full flex flex-col justify-center'
+							onSubmit={handleSubmit}
 						>
-							GET TICKET
-						</button>
-					</form>
+							<label htmlFor='name'>Full name</label>
+							<div className='w-full relative'>
+								<input
+									type='text'
+									name='name'
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									className='border px-10 py-2 mb-3 rounded-md w-full'
+									required
+								/>
+								<FaUserAlt className=' absolute left-4 top-3 text-gray-300' />
+							</div>
+
+							<label htmlFor='email'>Email address</label>
+							<div className='w-full relative'>
+								<input
+									type='email'
+									name='email'
+									value={email}
+									onChange={(e) => setEmail(e.target.value)}
+									className='border px-10 py-2 mb-3 rounded-md w-full'
+									required
+								/>
+								<HiMail className=' absolute left-4 top-3 text-gray-300 text-xl' />
+							</div>
+							<button
+								type='submit'
+								className='bg-[#FFD95A] p-3 font-medium hover:bg-[#C07F00] hover:text-[#FFF8DE] mb-3 rounded-md'
+							>
+								CONTINUE TO PAYMENT
+							</button>
+						</form>
+					) : (
+						<div className='w-full flex flex-col items-center'>
+							<div className='mb-5 text-center'>
+								<p className='text-gray-600 mb-2'>Please complete payment to receive your ticket</p>
+								<div className='p-3 bg-gray-100 rounded-md mb-2'>
+									<p className='font-bold'>{event.title}</p>
+									<p>Name: {name}</p>
+									<p>Email: {email}</p>
+								</div>
+							</div>
+							
+							{!paymentComplete ? (
+								<div className='w-full flex justify-center mb-4'>
+									<form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" className='w-full flex justify-center'>
+										<input type="hidden" name="cmd" value="_s-xclick" />
+										<input type="hidden" name="hosted_button_id" value="VDEW3PC69VV7N" />
+										<input type="hidden" name="currency_code" value="USD" />
+										<input 
+											type="image" 
+											src="https://www.paypalobjects.com/en_US/i/btn/btn_paynow_LG.gif" 
+											border="0" 
+											name="submit" 
+											title="PayPal - The safer, easier way to pay online!" 
+											alt="Buy Now"
+											onClick={() => {
+												// In real implementation with PayPal callback:
+												// 1. PayPal would redirect to a return URL after payment
+												// 2. Or we'd use the PayPal JavaScript SDK to handle the completion
+												// For now, simulate payment completion after 2 seconds
+												setTimeout(() => handlePaymentSuccess(), 2000);
+											}}
+										/>
+									</form>
+								</div>
+							) : (
+								<p className='text-green-600 font-bold mb-4'>Payment successful! Generating your ticket...</p>
+							)}
+							
+							<button
+								className='text-blue-600 underline'
+								onClick={() => setShowPayment(false)}
+							>
+								Go back
+							</button>
+						</div>
+					)}
+					
 					<div className='absolute bottom-5 left-5'>
 						<p className='opacity-50 text-sm'>
 							<Link href='/'>{event.title}</Link> &copy; Copyright{" "}

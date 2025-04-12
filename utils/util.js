@@ -244,7 +244,8 @@ import {
 	email,
 	event_id,
 	setSuccess,
-	setLoading
+	setLoading,
+	paymentInfo = null // Add payment info parameter
   ) => {
 	setLoading(true);
 	
@@ -287,9 +288,22 @@ import {
 		return;
 	  }
 
+	  // Create the attendee object with payment info
+	  const attendeeData = { 
+	    name, 
+	    email, 
+	    passcode,
+	    // Add payment information if provided
+	    paymentInfo: paymentInfo || {
+	      paymentId: 'direct-registration',
+	      timestamp: new Date().toISOString(),
+	      paid: true
+	    }
+	  };
+
 	  // Add attendee to event
 	  await updateDoc(eventRef, {
-		attendees: arrayUnion({ name, email, passcode }),
+		attendees: arrayUnion(attendeeData),
 	  });
 
 	  const flierURL = firebaseEvent.flier_url
