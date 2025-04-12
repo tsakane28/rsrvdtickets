@@ -3,20 +3,34 @@ import nodemailer from 'nodemailer';
 import { convertTo12HourFormat } from '../../utils/timeFormat';
 
 // Create reusable transporter
-const transporter = nodemailer.createTransport({
-	host: process.env.EMAIL_HOST,
-	port: parseInt(process.env.EMAIL_PORT),
-	secure: false,
-	auth: {
-		user: process.env.EMAIL_USER,
-		pass: process.env.EMAIL_PASS,
-	},
-});
+let transporter;
+try {
+	transporter = nodemailer.createTransport({
+		host: process.env.EMAIL_HOST,
+		port: parseInt(process.env.EMAIL_PORT),
+		secure: false,
+		auth: {
+			user: process.env.EMAIL_USER,
+			pass: process.env.EMAIL_PASS,
+		},
+	});
+} catch (error) {
+	console.error("Failed to create email transporter:", error);
+}
 
 export default async function handler(req, res) {
 	// Only allow POST requests
 	if (req.method !== 'POST') {
 		return res.status(405).json({ success: false, message: 'Method not allowed' });
+	}
+
+	// Check if transporter is initialized
+	if (!transporter) {
+		console.error("Email transporter is not initialized");
+		return res.status(500).json({ 
+			success: false, 
+			message: 'Email service not configured properly' 
+		});
 	}
 
 	try {
@@ -61,6 +75,9 @@ export default async function handler(req, res) {
 		return res.status(200).json({ success: true, message: 'Email sent successfully' });
 	} catch (error) {
 		console.error("❌ Failed to send email:", error);
-		return res.status(500).json({ success: false, message: `Failed to send email: ${error.message}` });
+		return res.status(500).json({ 
+			success: false, 
+			message: `Failed to send email: ${error.message}` 
+		});
 	}
 }
