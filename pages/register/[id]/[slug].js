@@ -52,7 +52,7 @@ const RegisterPage = ({ event }) => {
 	return (
 		<div>
 			<Head>
-				<title>{`${event.title} | EventTiz`}</title>
+				<title>{`${event.title} | RSRVD`}</title>
 				<meta
 					name='description'
 					content='An event ticketing system built with NextJS and Firebase'
