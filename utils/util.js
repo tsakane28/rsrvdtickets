@@ -25,9 +25,8 @@ import {
   import { initializeApp } from "firebase/app";
   import { getAuth, getFirestore, getStorage } from "firebase/app";
   import nodemailer from "nodemailer";
-  import { generateQRCode } from "../utils/qr";
-  import { convertTo12HourFormat } from "../utils/timeFormat";
-
+  import { generateQRCode } from "../utils/qr"; // Updated path
+  import { convertTo12HourFormat } from "../utils/timeFormat"; // Updated path
   
   // Initialize Firebase
   const firebaseConfig = {
@@ -48,7 +47,7 @@ import {
   const transporter = nodemailer.createTransport({
 	host: process.env.EMAIL_HOST,
 	port: process.env.EMAIL_PORT,
-	secure: false, // Use true if connecting to port 465
+	secure: false,
 	auth: {
 	  user: process.env.EMAIL_USER,
 	  pass: process.env.EMAIL_PASS,
@@ -65,9 +64,13 @@ import {
 	note,
 	description,
 	passcode,
-	flier_url = "No flier for this event", // Default to no flier if not provided
+	flier_url,
+	setSuccess,
+	setLoading,
 	qrCode = null, // Optional base64 QR code
   }) => {
+	setLoading(true);
+  
 	const htmlContent = `
 	  <h2>You're registered for: ${title}</h2>
 	  <p><strong>Date:</strong> ${date}</p>
@@ -94,11 +97,13 @@ import {
 		subject: `RSRVD Ticket: ${title}`,
 		html: htmlContent,
 	  });
-	  console.log("✅ Email sent to", email);
-	  return true;
+  
+	  setLoading(false);
+	  setSuccess(true);
 	} catch (error) {
-	  console.error("❌ Failed to send email:", error);
-	  return false;
+	  console.error("❌ Email error:", error);
+	  setLoading(false);
+	  alert("Failed to send email: " + error.message);
 	}
   };
   
@@ -288,18 +293,18 @@ import {
 			passcode,
 			flier_url: flierURL,
 			qrCode,
+			setSuccess,
+			setLoading,
 		  });
-  
-		  setSuccess(true);
 		} else {
+		  setLoading(false);
 		  errorMessage("User already registered ❌");
 		}
 	  }
 	} catch (error) {
 	  console.error("Error registering attendee:", error);
-	  errorMessage("Failed to register attendee ❌");
-	} finally {
 	  setLoading(false);
+	  errorMessage("Failed to register attendee ❌");
 	}
   };
   
