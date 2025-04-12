@@ -40,6 +40,7 @@ import {
 	setSuccess,
 	setLoading,
 	qrCode = null, // Optional base64 QR code
+	event_id, // This parameter is received but not used in request body
   }) => {
 	setLoading(true);
   
@@ -61,6 +62,7 @@ import {
 		  passcode,
 		  flier_url,
 		  qrCode,
+		  event_id, // Add event_id to the request body
 		}),
 	  });
 
