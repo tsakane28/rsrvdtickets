@@ -245,46 +245,67 @@ import {
 	setLoading
   ) => {
 	setLoading(true);
-	const passcode = generateID();
-	const qrCode = await generateQRCode(passcode);
-  
+	
 	try {
+	  // Validate inputs
+	  if (!name || !email || !event_id) {
+		setLoading(false);
+		errorMessage("Missing required information ❌");
+		return;
+	  }
+	  
+	  const passcode = generateID();
+	  const qrCode = await generateQRCode(passcode);
+
 	  const eventRef = doc(db, "events", event_id);
 	  const eventSnap = await getDoc(eventRef);
-  
-	  if (eventSnap.exists()) {
-		const firebaseEvent = eventSnap.data();
-		const attendees = firebaseEvent.attendees;
-		const result = attendees.filter((item) => item.email === email);
-  
-		if (result.length === 0 && !firebaseEvent.disableRegistration) {
-		  await updateDoc(eventRef, {
-			attendees: arrayUnion({ name, email, passcode }),
-		  });
-  
-		  const flierURL = firebaseEvent.flier_url
-			? firebaseEvent.flier_url
-			: "No flier for this event";
-  
-		  await sendEmail({
-			name,
-			email,
-			title: firebaseEvent.title,
-			time: firebaseEvent.time,
-			date: firebaseEvent.date,
-			note: firebaseEvent.note,
-			description: firebaseEvent.description,
-			passcode,
-			flier_url: flierURL,
-			qrCode,
-			setSuccess,
-			setLoading,
-		  });
-		} else {
-		  setLoading(false);
-		  errorMessage("User already registered ❌");
-		}
+
+	  if (!eventSnap.exists()) {
+		setLoading(false);
+		errorMessage("Event not found ❌");
+		return;
 	  }
+
+	  const firebaseEvent = eventSnap.data();
+	  const attendees = firebaseEvent.attendees || [];
+	  const result = attendees.filter((item) => item.email === email);
+
+	  if (result.length > 0) {
+		setLoading(false);
+		errorMessage("User already registered ❌");
+		return;
+	  }
+
+	  if (firebaseEvent.disableRegistration) {
+		setLoading(false);
+		errorMessage("Registration for this event is closed ❌");
+		return;
+	  }
+
+	  // Add attendee to event
+	  await updateDoc(eventRef, {
+		attendees: arrayUnion({ name, email, passcode }),
+	  });
+
+	  const flierURL = firebaseEvent.flier_url
+		? firebaseEvent.flier_url
+		: "No flier for this event";
+
+	  // Send email with ticket info
+	  await sendEmail({
+		name,
+		email,
+		title: firebaseEvent.title,
+		time: firebaseEvent.time,
+		date: firebaseEvent.date,
+		note: firebaseEvent.note,
+		description: firebaseEvent.description,
+		passcode,
+		flier_url: flierURL,
+		qrCode,
+		setSuccess,
+		setLoading,
+	  });
 	} catch (error) {
 	  console.error("Error registering attendee:", error);
 	  setLoading(false);
