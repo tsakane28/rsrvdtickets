@@ -34,6 +34,10 @@ const RegisterPage = ({ event }) => {
 
 	const handleSubmit = (e) => {
 		e.preventDefault();
+		
+		// Debug the event_id
+		console.log("Submitting registration with event_id:", query.id);
+		
 		registerAttendee(name, email, query.id, setSuccess, setLoading);
 		setEmail("");
 		setName("");

@@ -13,14 +13,27 @@ export async function getServerSideProps(context) {
     const { id } = context.params;
     
     if (!id) {
+      console.error("Missing ticket ID");
       return { props: { error: 'Ticket ID is required' } };
     }
     
     // Parse the ID to get event ID and passcode
-    const [eventId, passcode] = id.split('-');
+    const parts = id.split('-');
+    
+    if (parts.length < 2) {
+      console.error("Invalid ticket ID format:", id);
+      return { props: { error: 'Invalid ticket ID format', debug: { id } } };
+    }
+    
+    // The passcode might contain hyphens, so join all parts after the first one
+    const eventId = parts[0];
+    const passcode = parts.slice(1).join('-');
+    
+    console.log("Parsed ticket ID:", { eventId, passcode });
     
     if (!eventId || !passcode) {
-      return { props: { error: 'Invalid ticket ID format' } };
+      console.error("Missing eventId or passcode after parsing");
+      return { props: { error: 'Invalid ticket ID format', debug: { eventId, passcode } } };
     }
     
     // Get event data
@@ -28,7 +41,8 @@ export async function getServerSideProps(context) {
     const eventSnap = await getDoc(eventRef);
     
     if (!eventSnap.exists()) {
-      return { props: { error: 'Event not found' } };
+      console.error("Event not found:", eventId);
+      return { props: { error: 'Event not found', debug: { eventId } } };
     }
     
     const eventData = eventSnap.data();
@@ -37,7 +51,8 @@ export async function getServerSideProps(context) {
     const attendee = eventData.attendees.find(a => a.passcode === passcode);
     
     if (!attendee) {
-      return { props: { error: 'Ticket not found' } };
+      console.error("Attendee with passcode not found:", passcode);
+      return { props: { error: 'Ticket not found', debug: { passcode } } };
     }
     
     // Return the ticket data
@@ -60,11 +75,11 @@ export async function getServerSideProps(context) {
     };
   } catch (error) {
     console.error('Error fetching ticket:', error);
-    return { props: { error: 'Failed to load ticket' } };
+    return { props: { error: 'Failed to load ticket', debug: { error: error.message } } };
   }
 }
 
-const TicketPage = ({ ticket, error }) => {
+const TicketPage = ({ ticket, error, debug }) => {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   
@@ -79,7 +94,26 @@ const TicketPage = ({ ticket, error }) => {
   
   // Handle errors
   if (error) {
-    return <ErrorPage />;
+    console.error("Error rendering ticket page:", error, debug);
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
+        <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Ticket Error</h1>
+          <p className="text-gray-700 mb-6">{error}</p>
+          {debug && process.env.NODE_ENV === 'development' && (
+            <pre className="bg-gray-100 p-4 rounded text-left text-xs overflow-auto max-h-40">
+              {JSON.stringify(debug, null, 2)}
+            </pre>
+          )}
+          <button 
+            onClick={() => router.push('/')} 
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4"
+          >
+            Go to Home
+          </button>
+        </div>
+      </div>
+    );
   }
   
   // Show loading state

@@ -6,14 +6,28 @@ export default async function handler(req, res) {
   const { id } = req.query;
   
   if (!id) {
+    console.error("Missing ticket ID");
     return res.status(400).json({ error: 'Ticket ID is required' });
   }
   
   try {
     // Get ticket information from attendee database
-    const [eventId, passcode] = id.split('-');
+    // Parse the ID to get event ID and passcode
+    const parts = id.split('-');
+    
+    if (parts.length < 2) {
+      console.error("Invalid ticket ID format:", id);
+      return res.status(400).json({ error: 'Invalid ticket ID format' });
+    }
+    
+    // The passcode might contain hyphens, so join all parts after the first one
+    const eventId = parts[0];
+    const passcode = parts.slice(1).join('-');
+    
+    console.log("Parsed ticket ID:", { eventId, passcode });
     
     if (!eventId || !passcode) {
+      console.error("Missing eventId or passcode after parsing");
       return res.status(400).json({ error: 'Invalid ticket ID format' });
     }
     
@@ -21,6 +35,7 @@ export default async function handler(req, res) {
     const eventSnap = await getDoc(eventRef);
     
     if (!eventSnap.exists()) {
+      console.error("Event not found:", eventId);
       return res.status(404).json({ error: 'Event not found' });
     }
     
@@ -30,6 +45,7 @@ export default async function handler(req, res) {
     const attendee = eventData.attendees.find(a => a.passcode === passcode);
     
     if (!attendee) {
+      console.error("Attendee with passcode not found:", passcode);
       return res.status(404).json({ error: 'Ticket not found' });
     }
     

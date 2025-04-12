@@ -254,6 +254,9 @@ import {
 		return;
 	  }
 	  
+	  // Debug event ID
+	  console.log("Registering for event_id:", event_id);
+	  
 	  const passcode = generateID();
 	  const qrCode = await generateQRCode(passcode);
 

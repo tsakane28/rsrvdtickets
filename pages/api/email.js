@@ -38,8 +38,20 @@ export default async function handler(req, res) {
 		// Extract email data from request body
 		const { name, email, title, time, date, note, description, passcode, flier_url, qrCode, event_id } = req.body;
 
+		// Debug logging to find the issue
+		console.log("Creating ticket with:", {
+			event_id,
+			passcode,
+			title
+		});
+
 		if (!email || !title) {
 			return res.status(400).json({ success: false, message: 'Missing required fields' });
+		}
+
+		if (!event_id) {
+			console.error("Missing event_id in email request");
+			return res.status(400).json({ success: false, message: 'Missing event_id parameter' });
 		}
 
 		// Generate PDF ticket
@@ -53,7 +65,14 @@ export default async function handler(req, res) {
 			qrCodeData: qrCode
 		});
 
-		// Create the ticket URL for HTML version
+		// Log the values used to build the URLs
+		console.log("Creating ticket URLs with:", {
+			base_url: process.env.NEXT_PUBLIC_BASE_URL || 'https://rsrvdtickets.vercel.app',
+			event_id,
+			passcode
+		});
+
+		// Create URLs for the ticket
 		const apiTicketUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://rsrvdtickets.vercel.app'}/api/ticket/${event_id}-${passcode}`;
 		// Create URL for the ticket page
 		const pageTicketUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://rsrvdtickets.vercel.app'}/ticket/${event_id}-${passcode}`;
