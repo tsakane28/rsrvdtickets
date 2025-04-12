@@ -23,7 +23,9 @@ import {
 	arrayUnion,
   } from "@firebase/firestore";
   import { initializeApp } from "firebase/app";
-  import { getAuth, getFirestore, getStorage } from "firebase/app";
+  import { getAuth } from "firebase/auth";
+  import { getFirestore } from "firebase/firestore";
+  import { getStorage } from "firebase/storage";
   import { generateQRCode } from "../utils/qr"; // Ensure this path is correct
   import { convertTo12HourFormat } from "../utils/timeFormat"; // Import the time format function
   
@@ -42,22 +44,6 @@ import {
   const db = getFirestore(app);
   const storage = getStorage(app);
   
-  // Dynamically import nodemailer only on the server side
-  let transporter;
-  if (typeof window === "undefined") {
-	transporter = await import("nodemailer").then((nodemailer) =>
-	  nodemailer.createTransport({
-		host: process.env.EMAIL_HOST,
-		port: process.env.EMAIL_PORT,
-		secure: false,
-		auth: {
-		  user: process.env.EMAIL_USER,
-		  pass: process.env.EMAIL_PASS,
-		},
-	  })
-	);
-  }
-  
   // Utility functions
   export const sendEmail = async ({
 	name,
@@ -73,42 +59,39 @@ import {
 	setLoading,
 	qrCode = null, // Optional base64 QR code
   }) => {
-	if (!transporter) {
-	  console.error("Email transporter is not initialized.");
-	  return;
-	}
-  
 	setLoading(true);
   
-	const htmlContent = `
-	  <h2>You're registered for: ${title}</h2>
-	  <p><strong>Date:</strong> ${date}</p>
-	  <p><strong>Time:</strong> ${convertTo12HourFormat(time)}</p>
-	  <p><strong>Note:</strong> ${note}</p>
-	  <p><strong>Description:</strong> ${description}</p>
-	  <p><strong>Passcode:</strong> ${passcode}</p>
-	  ${
-		flier_url !== "No flier for this event"
-		  ? `<img src="${flier_url}" alt="Event Flier" style="max-width:100%"/>`
-		  : ""
-	  }
-	  ${
-		qrCode
-		  ? `<p><strong>Scan this QR code at the event:</strong></p><img src="${qrCode}" alt="QR Code" style="width:200px"/>`
-		  : ""
-	  }
-	`;
-  
 	try {
-	  await transporter.sendMail({
-		from: '"RSRVD Events" <rsrvd@reserveddigitalbranding.com>',
-		to: email,
-		subject: `RSRVD Ticket: ${title}`,
-		html: htmlContent,
+	  // Use fetch to call our API endpoint
+	  const response = await fetch('/api/email', {
+		method: 'POST',
+		headers: {
+		  'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+		  name,
+		  email,
+		  title,
+		  time,
+		  date,
+		  note,
+		  description,
+		  passcode,
+		  flier_url,
+		  qrCode,
+		}),
 	  });
-  
-	  setLoading(false);
-	  setSuccess(true);
+
+	  const data = await response.json();
+	  
+	  if (data.success) {
+		setLoading(false);
+		setSuccess(true);
+	  } else {
+		console.error("❌ Email error:", data.message);
+		setLoading(false);
+		alert("Failed to send email: " + data.message);
+	  }
 	} catch (error) {
 	  console.error("❌ Email error:", error);
 	  setLoading(false);
