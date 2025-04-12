@@ -24,9 +24,8 @@ import {
   } from "@firebase/firestore";
   import { initializeApp } from "firebase/app";
   import { getAuth, getFirestore, getStorage } from "firebase/app";
-  import nodemailer from "nodemailer";
-  import { generateQRCode } from "../utils/qr"; // Updated path
-  import { convertTo12HourFormat } from "../utils/timeFormat"; // Updated path
+  import { generateQRCode } from "../utils/qr"; // Ensure this path is correct
+  import { convertTo12HourFormat } from "../utils/timeFormat"; // Import the time format function
   
   // Initialize Firebase
   const firebaseConfig = {
@@ -43,16 +42,21 @@ import {
   const db = getFirestore(app);
   const storage = getStorage(app);
   
-  // Email configuration
-  const transporter = nodemailer.createTransport({
-	host: process.env.EMAIL_HOST,
-	port: process.env.EMAIL_PORT,
-	secure: false,
-	auth: {
-	  user: process.env.EMAIL_USER,
-	  pass: process.env.EMAIL_PASS,
-	},
-  });
+  // Dynamically import nodemailer only on the server side
+  let transporter;
+  if (typeof window === "undefined") {
+	transporter = await import("nodemailer").then((nodemailer) =>
+	  nodemailer.createTransport({
+		host: process.env.EMAIL_HOST,
+		port: process.env.EMAIL_PORT,
+		secure: false,
+		auth: {
+		  user: process.env.EMAIL_USER,
+		  pass: process.env.EMAIL_PASS,
+		},
+	  })
+	);
+  }
   
   // Utility functions
   export const sendEmail = async ({
@@ -69,6 +73,11 @@ import {
 	setLoading,
 	qrCode = null, // Optional base64 QR code
   }) => {
+	if (!transporter) {
+	  console.error("Email transporter is not initialized.");
+	  return;
+	}
+  
 	setLoading(true);
   
 	const htmlContent = `
