@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
 	try {
 		// Extract email data from request body
-		const { name, email, title, time, date, note, description, passcode, flier_url, qrCode } = req.body;
+		const { name, email, title, time, date, note, description, passcode, flier_url, qrCode, event_id } = req.body;
 
 		if (!email || !title) {
 			return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -53,6 +53,9 @@ export default async function handler(req, res) {
 			qrCodeData: qrCode
 		});
 
+		// Create the ticket URL for HTML version
+		const ticketUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://rsrvdtickets.vercel.app'}/api/ticket/${event_id}-${passcode}`;
+
 		// Create HTML content for the email
 		const htmlContent = `
 			<!DOCTYPE html>
@@ -62,11 +65,11 @@ export default async function handler(req, res) {
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<title>Event Registration</title>
 				<style>
-					body { font-family: Arial, sans-serif; line-height: 1.6; }
+					body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }
 					.container { max-width: 600px; margin: 0 auto; padding: 20px; }
-					.header { background-color: #FFD95A; color: #333; padding: 20px; text-align: center; }
-					.content { padding: 20px; }
-					.footer { background-color: #f4f4f4; padding: 10px; text-align: center; font-size: 12px; }
+					.header { background-color: #FFD95A; color: #333; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+					.content { padding: 30px; background: white; border: 1px solid #eee; border-top: none; border-radius: 0 0 5px 5px; }
+					.footer { background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 12px; border-radius: 5px; margin-top: 20px; }
 					.ticket-button { text-align: center; margin: 30px 0; }
 					.ticket-button a { 
 						background-color: #C07F00; 
@@ -76,14 +79,23 @@ export default async function handler(req, res) {
 						border-radius: 5px;
 						font-weight: bold;
 						display: inline-block;
+						margin: 0 10px;
+					}
+					.ticket-button a.secondary {
+						background-color: #555;
 					}
 					.ticket-info {
 						background-color: #f9f9f9;
 						border: 1px solid #ddd;
-						padding: 15px;
+						padding: 20px;
 						border-radius: 5px;
 						margin-bottom: 20px;
 					}
+					.ticket-info p {
+						margin: 10px 0;
+					}
+					h1 { color: #333; }
+					h2 { color: #555; margin-top: 30px; }
 				</style>
 			</head>
 			<body>
@@ -101,22 +113,26 @@ export default async function handler(req, res) {
 							<p><strong>Passcode:</strong> ${passcode}</p>
 						</div>
 						
+						<h2>Your Ticket</h2>
+						<p>Your ticket is attached to this email and can also be viewed online. You can download, print, or show it on your device at the event.</p>
+						
 						<div class="ticket-button">
-							<p>Your ticket is attached to this email. You can download and print it or show it on your device at the event.</p>
-							<a href="cid:ticket.pdf">View Ticket</a>
+							<a href="${ticketUrl}" target="_blank">View Online Ticket</a>
+							<a href="cid:ticket.pdf" class="secondary">View PDF Ticket</a>
 						</div>
 
 						${
 							flier_url && flier_url !== "No flier for this event"
 								? `<div class="flier">
-									<p><strong>Event Flier:</strong></p>
-									<img src="${flier_url}" alt="Event Flier" style="max-width:100%; border: 1px solid #ddd;">
+									<h2>Event Flier</h2>
+									<img src="${flier_url}" alt="Event Flier" style="max-width:100%; border: 1px solid #ddd; border-radius: 5px;">
 								  </div>`
 								: ""
 						}
 					</div>
 					<div class="footer">
 						<p>RSRVD Events | &copy; ${new Date().getFullYear()}</p>
+						<p>If you have any questions, please contact the event organizer.</p>
 					</div>
 				</div>
 			</body>
