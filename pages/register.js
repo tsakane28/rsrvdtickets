@@ -5,6 +5,7 @@ import { HiMail } from "react-icons/hi";
 import { AiTwotoneLock, AiFillCheckCircle } from "react-icons/ai";
 import { firebaseCreateUser } from "../utils/util";
 import { useRouter } from "next/router";
+import ReCAPTCHA from "react-google-recaptcha";
 
 const register = () => {
 	const [email, setEmail] = useState("");
@@ -89,6 +90,10 @@ const register = () => {
 						{password !== cpassword && (
 							<p className='text-red-500 mb-2'>Password does not match</p>
 						)}
+						<ReCAPTCHA
+						sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+						onChange={handleVerify}
+						/>
 						<button
 							type='submit'
 							className='bg-[#FFD95A] p-3 font-medium hover:bg-[#C07F00] hover:text-[#FFF8DE] mb-3 rounded-md'

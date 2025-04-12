@@ -25,6 +25,7 @@ import {
 	where,
 	arrayUnion,
 } from "@firebase/firestore";
+import { generateQRCode } from "@/utils/qr"; // Adjust the path if needed
 
 const sendEmail = (
 	name,
@@ -227,6 +228,8 @@ export const registerAttendee = async (
 ) => {
 	setLoading(true);
 	const passcode = generateID();
+	const qrCode = await generateQRCode(passcode); // ✅ QR code generated here
+
 	const eventRef = doc(db, "events", event_id);
 	const eventSnap = await getDoc(eventRef);
 	let firebaseEvent = {};
@@ -245,6 +248,8 @@ export const registerAttendee = async (
 			const flierURL = firebaseEvent.flier_url
 				? firebaseEvent.flier_url
 				: "No flier for this event";
+
+			// ✅ You can optionally include qrCode in the email here
 			sendEmail(
 				name,
 				email,
@@ -256,7 +261,8 @@ export const registerAttendee = async (
 				passcode,
 				flierURL,
 				setSuccess,
-				setLoading
+				setLoading,
+				qrCode // 🆕 Optional argument to support QR
 			);
 		} else {
 			setLoading(false);
