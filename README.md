@@ -39,7 +39,6 @@ RSRVD Tickets is a comprehensive event ticketing system built with Next.js and F
 [View Live Version](https://rsrvdtickets.vercel.app/)
 
 ## 📝 How-to Guide
-[Read the original article on Dev.to](https://dev.to/arshadayvid/how-i-built-an-event-ticketing-system-with-nextjs-and-firebase-50l2)
 
 ## 💻 Installation & Setup
 
