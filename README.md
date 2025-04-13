@@ -2,7 +2,7 @@
 
 RSRVD Tickets is a comprehensive event ticketing system built with Next.js and Firebase, allowing users to create events, manage registrations, and distribute tickets with QR codes.
 
-![Event ticketing system](https://github.com/dha-stix/eventtiz/assets/67129211/c7282244-6b1c-49e0-918e-1bfc1097a26c)
+[![Screenshot-2025-04-13-at-15-30-01.png](https://i.postimg.cc/TYbHfRZp/Screenshot-2025-04-13-at-15-30-01.png)](https://postimg.cc/XpVgg0Nb)
 
 ## 🌟 Features
 
@@ -49,7 +49,7 @@ RSRVD Tickets is a comprehensive event ticketing system built with Next.js and F
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/yourname/rsrvdtickets.git
+git clone https://github.com/tsakane28/rsrvdtickets.git
 cd rsrvdtickets
 ```
 
