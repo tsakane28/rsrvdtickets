@@ -184,25 +184,45 @@ const RegisterPage = ({ event }) => {
 							
 							{!paymentComplete ? (
 								<div className='w-full flex justify-center mb-4'>
-									<form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" className='w-full flex justify-center'>
-										<input type="hidden" name="cmd" value="_s-xclick" />
-										<input type="hidden" name="hosted_button_id" value="L4LPT7W8BMYRU" />
-										<input type="hidden" name="currency_code" value="USD" />
-										<input 
-											type="image" 
-											src="https://www.paypalobjects.com/en_US/i/btn/btn_buynow_LG.gif" 
-											border="0" 
-											name="submit" 
-											title="PayPal - The safer, easier way to pay online!" 
-											alt="Buy Now"
-											onClick={() => {
-												// In real implementation with PayPal callback:
-												// 1. PayPal would redirect to a return URL after payment
-												// 2. Or we'd use the PayPal JavaScript SDK to handle the completion
-												// For now, simulate payment completion after 2 seconds
-												setTimeout(() => handlePaymentSuccess(), 2000);
-											}}
-										/>
+									<style jsx>{`
+										.pp-5DQJWXVXVDQG6 {
+											text-align: center;
+											border: none;
+											border-radius: 0.25rem;
+											min-width: 11.625rem;
+											padding: 0 2rem;
+											height: 2.625rem;
+											font-weight: bold;
+											background-color: #FFD140;
+											color: #000000;
+											font-family: "Helvetica Neue", Arial, sans-serif;
+											font-size: 1rem;
+											line-height: 1.25rem;
+											cursor: pointer;
+										}
+									`}</style>
+									<form 
+										action="https://www.sandbox.paypal.com/ncp/payment/5DQJWXVXVDQG6" 
+										method="post" 
+										target="_blank" 
+										style={{display: 'inline-grid', justifyItems: 'center', alignContent: 'start', gap: '0.5rem'}}
+										onSubmit={(e) => {
+											// Prevent the default form submission to handle it ourselves
+											e.preventDefault();
+											
+											// Open PayPal in a new window manually
+											window.open("https://www.sandbox.paypal.com/ncp/payment/5DQJWXVXVDQG6", "_blank");
+											
+											// In real implementation with PayPal callback:
+											// 1. PayPal would redirect to a return URL after payment
+											// 2. Or we'd use the PayPal JavaScript SDK to handle the completion
+											// For now, simulate payment completion after 2 seconds
+											setTimeout(() => handlePaymentSuccess(), 2000);
+										}}
+									>
+										<input className="pp-5DQJWXVXVDQG6" type="submit" value="Get a Ticket" />
+										<img src="https://www.paypalobjects.com/images/Debit_Credit_APM.svg" alt="cards" />
+										<section> Powered by <img src="https://www.paypalobjects.com/paypal-ui/logos/svg/paypal-wordmark-color.svg" alt="paypal" style={{height: '0.875rem', verticalAlign: 'middle'}}/></section>
 									</form>
 								</div>
 							) : (
