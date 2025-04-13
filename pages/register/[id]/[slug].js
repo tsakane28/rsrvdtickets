@@ -186,11 +186,11 @@ const RegisterPage = ({ event }) => {
 								<div className='w-full flex justify-center mb-4'>
 									<form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top" className='w-full flex justify-center'>
 										<input type="hidden" name="cmd" value="_s-xclick" />
-										<input type="hidden" name="hosted_button_id" value="VDEW3PC69VV7N" />
+										<input type="hidden" name="hosted_button_id" value="L4LPT7W8BMYRU" />
 										<input type="hidden" name="currency_code" value="USD" />
 										<input 
 											type="image" 
-											src="https://www.paypalobjects.com/en_US/i/btn/btn_paynow_LG.gif" 
+											src="https://www.paypalobjects.com/en_US/i/btn/btn_buynow_LG.gif" 
 											border="0" 
 											name="submit" 
 											title="PayPal - The safer, easier way to pay online!" 
