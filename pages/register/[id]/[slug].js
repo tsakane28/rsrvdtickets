@@ -32,26 +32,19 @@ const RegisterPage = ({ event }) => {
 	const [email, setEmail] = useState("");
 	const [showPayment, setShowPayment] = useState(false);
 	const [paymentComplete, setPaymentComplete] = useState(false);
-	const { query, router } = useRouter();
+	const { query } = useRouter();
 
-	const handleSubmit = async (e) => {
+	const handleSubmit = (e) => {
 		e.preventDefault();
 		
-		// Create user account logic here
-		try {
-			// Call your account creation function (e.g., firebaseCreateUser)
-			await firebaseCreateUser(email, password, router); // Assuming you have a password field
-			// Redirect to dashboard or event registration page
-			router.push('/dashboard'); // Adjust the path as needed
-		} catch (error) {
-			console.error("Account creation error:", error);
-			alert("Failed to create account: " + error.message);
-		}
+		// Show payment form instead of immediately registering
+		setShowPayment(true);
 	};
 	
 	const handlePaymentSuccess = async () => {
 		// Verify payment with our API endpoint
 		try {
+			// In a real implementation, these values would come from PayPal
 			const verifyResponse = await fetch('/api/verify-payment', {
 				method: 'POST',
 				headers: {
@@ -67,12 +60,14 @@ const RegisterPage = ({ event }) => {
 			const verifyData = await verifyResponse.json();
 			
 			if (verifyData.success) {
+				// Only register attendee after payment is verified
 				console.log("Payment verified successfully, registering with event_id:", query.id);
 				setPaymentComplete(true);
 				setLoading(true);
 				
+				// Create payment info object from verified payment
 				const paymentInfo = {
-					paymentId: 'sample-payment-id',
+					paymentId: 'sample-payment-id', // In real app, use actual PayPal paymentId
 					amount: verifyData.details.amount,
 					currency: verifyData.details.currency,
 					timestamp: new Date().toISOString(),
@@ -81,7 +76,7 @@ const RegisterPage = ({ event }) => {
 				};
 				
 				// Pass payment info to registerAttendee
-				await registerAttendee(name, email, query.id, setSuccess, setLoading, paymentInfo);
+				registerAttendee(name, email, query.id, setSuccess, setLoading, paymentInfo);
 				setEmail("");
 				setName("");
 			} else {
