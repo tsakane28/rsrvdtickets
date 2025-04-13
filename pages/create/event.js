@@ -7,7 +7,6 @@ import { auth } from "../../utils/firebase";
 import { addEventToFirebase, successMessage } from "../../utils/util";
 import { useRouter } from "next/router";
 import Loading from "../../components/Loading";
-import { toast } from "react-hot-toast";
 
 const event = () => {
 	const [user, setUser] = useState({});
