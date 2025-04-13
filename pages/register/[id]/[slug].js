@@ -32,13 +32,21 @@ const RegisterPage = ({ event }) => {
 	const [email, setEmail] = useState("");
 	const [showPayment, setShowPayment] = useState(false);
 	const [paymentComplete, setPaymentComplete] = useState(false);
-	const { query } = useRouter();
+	const { query, router } = useRouter();
 
-	const handleSubmit = (e) => {
+	const handleSubmit = async (e) => {
 		e.preventDefault();
 		
-		// Show payment form instead of immediately registering
-		setShowPayment(true);
+		// Create user account logic here
+		try {
+			// Call your account creation function (e.g., firebaseCreateUser)
+			await firebaseCreateUser(email, password, router); // Assuming you have a password field
+			// Redirect to dashboard or event registration page
+			router.push('/dashboard'); // Adjust the path as needed
+		} catch (error) {
+			console.error("Account creation error:", error);
+			alert("Failed to create account: " + error.message);
+		}
 	};
 	
 	const handlePaymentSuccess = async () => {
