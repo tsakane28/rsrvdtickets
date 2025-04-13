@@ -102,9 +102,11 @@ import {
 	note,
 	flier,
 	router,
-	setButtonClicked
+	setButtonClicked,
+	setUploadProgress
   ) => {
 	try {
+	  // First create the event document without the image
 	  const docRef = await addDoc(collection(db, "events"), {
 		user_id: id,
 		title,
@@ -118,27 +120,50 @@ import {
 		disableRegistration: false,
 	  });
   
-	  const imageRef = ref(storage, `events/${docRef.id}/image`);
-  
-	  if (flier !== null) {
-		try {
-		  await uploadString(imageRef, flier, "data_url");
-		  const downloadURL = await getDownloadURL(imageRef);
-		  await updateDoc(doc(db, "events", docRef.id), {
-			flier_url: downloadURL,
-		  });
-  
-		  successMessage("Event created! 🎉");
-		  if (setButtonClicked) setButtonClicked(false);
-		  router.push("/dashboard");
-		} catch (uploadError) {
-		  console.error("Error uploading image:", uploadError);
-		  errorMessage("Event created but failed to upload image ❌");
-		  if (setButtonClicked) setButtonClicked(false);
-		  router.push("/dashboard");
-		}
-	  } else {
+	  // If there's no flier, we're done
+	  if (flier === null) {
 		successMessage("Event created! 🎉");
+		if (setButtonClicked) setButtonClicked(false);
+		router.push("/dashboard");
+		return;
+	  }
+	  
+	  try {
+		// Update progress if the function is provided
+		if (setUploadProgress) setUploadProgress(30);
+		
+		// Create a reference to Firebase Storage
+		const imageRef = ref(storage, `events/${docRef.id}/image`);
+  
+		// Update progress
+		if (setUploadProgress) setUploadProgress(50);
+		
+		// Upload the image data
+		await uploadString(imageRef, flier, "data_url");
+		
+		// Update progress
+		if (setUploadProgress) setUploadProgress(75);
+		
+		// Get the download URL for the uploaded image
+		const downloadURL = await getDownloadURL(imageRef);
+		
+		// Update progress
+		if (setUploadProgress) setUploadProgress(90);
+		
+		// Update the event document with the image URL
+		await updateDoc(doc(db, "events", docRef.id), {
+		  flier_url: downloadURL,
+		});
+		
+		// Complete progress
+		if (setUploadProgress) setUploadProgress(100);
+  
+		successMessage("Event created with flier! 🎉");
+		if (setButtonClicked) setButtonClicked(false);
+		router.push("/dashboard");
+	  } catch (uploadError) {
+		console.error("Error uploading image:", uploadError);
+		errorMessage("Event created but failed to upload image ❌");
 		if (setButtonClicked) setButtonClicked(false);
 		router.push("/dashboard");
 	  }
@@ -146,6 +171,7 @@ import {
 	  console.error("Error adding event:", error);
 	  errorMessage("Failed to create event ❌");
 	  if (setButtonClicked) setButtonClicked(false);
+	  if (setUploadProgress) setUploadProgress(0);
 	}
   };
   

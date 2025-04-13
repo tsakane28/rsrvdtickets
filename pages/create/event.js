@@ -18,6 +18,8 @@ const event = () => {
 	const [note, setNote] = useState("");
 	const [flier, setFlier] = useState(null);
 	const [buttonClicked, setButtonClicked] = useState(false);
+	const [uploadProgress, setUploadProgress] = useState(0);
+	const [fileError, setFileError] = useState("");
 	const router = useRouter();
 
 	const isUserLoggedIn = useCallback(() => {
@@ -36,6 +38,10 @@ const event = () => {
 
 	const handleSubmit = (e) => {
 		e.preventDefault();
+		if (fileError) {
+			alert("Please fix the file error before submitting.");
+			return;
+		}
 		setButtonClicked(true);
 		addEventToFirebase(
 			user.uid,
@@ -47,18 +53,105 @@ const event = () => {
 			note,
 			flier,
 			router,
-			setButtonClicked
+			setButtonClicked,
+			setUploadProgress
 		);
 	};
 
-	const handleFileReader = (e) => {
-		const reader = new FileReader();
-		if (e.target.files[0]) {
-			reader.readAsDataURL(e.target.files[0]);
+	const compressImage = (file, maxSizeMB = 1) => {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.readAsDataURL(file);
+			reader.onload = (event) => {
+				const img = new Image();
+				img.src = event.target.result;
+				img.onload = () => {
+					const canvas = document.createElement('canvas');
+					let width = img.width;
+					let height = img.height;
+					
+					// Calculate new dimensions to maintain aspect ratio
+					const maxDimension = 1200;
+					if (width > height && width > maxDimension) {
+						height = Math.round((height * maxDimension) / width);
+						width = maxDimension;
+					} else if (height > maxDimension) {
+						width = Math.round((width * maxDimension) / height);
+						height = maxDimension;
+					}
+					
+					canvas.width = width;
+					canvas.height = height;
+					const ctx = canvas.getContext('2d');
+					ctx.drawImage(img, 0, 0, width, height);
+					
+					// Get compressed image as Data URL
+					const quality = 0.7; // Adjust quality to achieve target size
+					const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+					
+					resolve(compressedDataUrl);
+				};
+				img.onerror = (error) => reject(error);
+			};
+			reader.onerror = (error) => reject(error);
+		});
+	};
+
+	const handleFileReader = async (e) => {
+		setFileError("");
+		const file = e.target.files[0];
+		
+		if (!file) return;
+		
+		// Check file type
+		if (!file.type.match('image.*')) {
+			setFileError("Please upload an image file (JPEG, PNG, etc)");
+			return;
 		}
-		reader.onload = (readerEvent) => {
-			setFlier(readerEvent.target.result);
-		};
+		
+		// Check file size (5MB max)
+		const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+		if (file.size > maxSize) {
+			setFileError(`File is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 5MB.`);
+			// We'll still try to compress it below
+		}
+		
+		try {
+			// Show progress indicator
+			setUploadProgress(10);
+			
+			// Try to compress the image if it's large
+			let imageData;
+			if (file.size > 1 * 1024 * 1024) { // Over 1MB
+				imageData = await compressImage(file);
+				setUploadProgress(50);
+			} else {
+				// For smaller files, just read as data URL without compression
+				const reader = new FileReader();
+				imageData = await new Promise((resolve, reject) => {
+					reader.onload = (readerEvent) => resolve(readerEvent.target.result);
+					reader.onerror = reject;
+					reader.readAsDataURL(file);
+				});
+				setUploadProgress(50);
+			}
+			
+			// Set the compressed or original image data
+			setFlier(imageData);
+			setUploadProgress(100);
+			
+			// Reset progress after a delay
+			setTimeout(() => setUploadProgress(0), 1000);
+			
+			// If we had a size error but managed to compress, clear the error
+			if (fileError.includes("too large")) {
+				setFileError("");
+			}
+		} catch (error) {
+			console.error("Error processing image:", error);
+			setFileError("Failed to process image. Please try a different file.");
+			setUploadProgress(0);
+		}
 	};
 
 	return (
@@ -147,17 +240,30 @@ const event = () => {
 						placeholder='Every attendee must take note of this'
 					/>
 					<label htmlFor='flier'>
-						Event Flier <span className='text-gray-500'>(optional)</span>
+						Event Flier <span className='text-gray-500'>(optional, max 5MB)</span>
 					</label>
 					<input
 						name='flier'
 						type='file'
-						className='border-[1px] py-2 px-4 rounded-md mb-3'
+						className='border-[1px] py-2 px-4 rounded-md mb-1'
 						accept='image/*'
 						onChange={handleFileReader}
 					/>
+					{uploadProgress > 0 && (
+						<div className="w-full bg-gray-200 rounded-full h-2.5 mb-2 dark:bg-gray-700">
+							<div className="bg-[#C07F00] h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
+						</div>
+					)}
+					{fileError && (
+						<p className="text-red-500 text-sm mb-3">{fileError}</p>
+					)}
+					{flier && !fileError && (
+						<div className="mb-3">
+							<p className="text-green-600 text-sm">Image ready to upload ✓</p>
+						</div>
+					)}
 					{buttonClicked ? (
-						<Loading title='May take longer time for image uploads' />
+						<Loading title='Processing flier and creating event - please wait...' />
 					) : (
 						<button className='px-4 py-2 bg-[#C07F00] w-[200px] mt-3 text-white rounded-md'>
 							Create Event

@@ -178,14 +178,47 @@ export default async function handler(req, res) {
 
 		// If flier URL exists, add it as an attachment
 		if (flier_url && flier_url !== "No flier for this event") {
-			mailOptions.attachments.push({
-				filename: 'event_flier.jpg',
-				path: flier_url,
-				cid: 'flier@rsrvd.com'
-			});
-			
-			// Replace the flier URL with the Content ID reference in the HTML
-			mailOptions.html = mailOptions.html.replace(flier_url, 'cid:flier@rsrvd.com');
+			try {
+				// Instead of attaching the image directly, include it as a link in the email
+				// This helps avoid email size limits
+				console.log("Adding flier URL to email:", flier_url);
+				
+				// Add a styled button to view the flier instead of embedding it
+				const flierHtml = `
+					<div class="flier-section" style="margin: 20px 0; text-align: center;">
+						<h2 style="color: #333; margin-bottom: 10px;">Event Flier</h2>
+						<p style="margin-bottom: 15px;">Click the button below to view the event flier:</p>
+						<a href="${flier_url}" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #FFD95A; color: #000; text-decoration: none; border-radius: 5px; font-weight: bold;">View Flier</a>
+					</div>
+				`;
+				
+				// Replace the flier image section with our button
+				mailOptions.html = mailOptions.html.replace(
+					new RegExp(`<div class="flier">.*?<img src="${flier_url}".*?</div>`, 's'),
+					flierHtml
+				);
+				
+				// For small fliers (under 1MB), still try to attach them
+				try {
+					const response = await fetch(flier_url);
+					const buffer = await response.arrayBuffer();
+					
+					// Only attach if under 1MB
+					if (buffer.byteLength < 1 * 1024 * 1024) {
+						mailOptions.attachments.push({
+							filename: 'event_flier.jpg',
+							content: Buffer.from(buffer),
+							contentType: 'image/jpeg',
+							cid: 'flier@rsrvd.com'
+						});
+					}
+				} catch (fetchError) {
+					console.warn("Could not attach flier to email, using link only:", fetchError.message);
+				}
+			} catch (flierError) {
+				console.warn("Error processing flier for email:", flierError);
+				// Continue with email sending even if flier processing fails
+			}
 		}
 
 		// Send the email
