@@ -23,7 +23,6 @@ import {
 	arrayUnion,
   } from "@firebase/firestore";
   import { generateQRCode } from "../utils/qr"; // Ensure this path is correct
-  import { convertTo12HourFormat } from "../utils/timeFormat"; // Import the time format function
   import { auth, db, storage } from "../utils/firebase"; // Import Firebase services from firebase.js
   
   // Utility functions
@@ -246,17 +245,34 @@ import {
 	  theme: "light",
 	});
   };
+  export const firebaseCreateUser = async (email, password, router) => {
+	try {
+	  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+	  const user = userCredential.user;
   
-  export const firebaseCreateUser = (email, password, router) => {
-	createUserWithEmailAndPassword(auth, email, password)
-	  .then((userCredential) => {
-		successMessage("Account created 🎉");
-		router.push("/login");
-	  })
-	  .catch((error) => {
-		console.error("Error creating user:", error);
-		errorMessage("Account creation declined ❌");
-	  });
+	  // Optional: Do something with the user object (e.g. log, store in DB)
+	  console.log("User created:", user);
+  
+	  successMessage("Account created 🎉");
+	  router.push("/login");
+  
+	} catch (error) {
+	  console.error("Error creating account:", error.message);
+  
+	  switch (error.code) {
+		case 'auth/email-already-in-use':
+		  errorMessage("This email is already in use. Please log in or use a different email.");
+		  break;
+		case 'auth/invalid-email':
+		  errorMessage("The email address is not valid.");
+		  break;
+		case 'auth/weak-password':
+		  errorMessage("Password is too weak. Use at least 6 characters.");
+		  break;
+		default:
+		  errorMessage("Account creation failed: " + error.message);
+	  }
+	}
   };
   
   export const firebaseLoginUser = (email, password, router) => {

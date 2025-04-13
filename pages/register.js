@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { HiMail } from "react-icons/hi";
 import { AiTwotoneLock, AiFillCheckCircle } from "react-icons/ai";
+import { firebaseCreateUser } from "../utils/util";
 import { useRouter } from "next/router";
 
 const Register = () => {
@@ -14,26 +15,7 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (password === cpassword) {
-      try {
-        const res = await fetch("/api/register", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-        });
-
-        const data = await res.json();
-
-        if (res.ok) {
-          router.push("/login");
-        } else {
-          alert(data.message);
-        }
-      } catch (error) {
-        console.error("Error registering user:", error);
-        alert("Failed to register. Please try again.");
-      }
+      await firebaseCreateUser(email, password, router);
     }
   };
 
