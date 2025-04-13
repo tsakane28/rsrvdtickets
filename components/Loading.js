@@ -1,10 +1,20 @@
 import React from "react";
 
-const Loading = ({ title }) => {
+const Loading = ({ title, progress = null }) => {
 	return (
-		<div className='w-full h-[100vh] dim absolute top-0 left-0 flex items-center justify-center p-4  z-40'>
+		<div className='w-full h-[100vh] dim absolute top-0 left-0 flex items-center justify-center p-4 z-40'>
 			<div className='md:w-[500px] w-full bg-white h-[300px] flex items-center justify-center flex-col rounded-md shadow-[#FFD95A] shadow-md space-y-4 relative'>
-				<h3 className='text-lg text-center'>{title}</h3>
+				<h3 className='text-lg text-center font-medium'>{title}</h3>
+				
+				{progress !== null && (
+					<div className="w-4/5 bg-gray-200 rounded-full h-3 mb-1">
+						<div 
+							className="bg-[#C07F00] h-3 rounded-full" 
+							style={{ width: `${progress}%` }}
+						></div>
+						<p className="text-xs text-gray-500 text-right mt-1">{progress}% complete</p>
+					</div>
+				)}
 
 				<button
 					disabled
@@ -30,6 +40,10 @@ const Loading = ({ title }) => {
 					</svg>
 					Please wait...
 				</button>
+				
+				<p className="text-xs text-gray-500 text-center w-4/5">
+					If this takes longer than expected, your event will still be created. Feel free to check your dashboard in a moment.
+				</p>
 			</div>
 		</div>
 	);

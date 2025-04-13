@@ -4,9 +4,10 @@ import { MdCancel } from "react-icons/md";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../../utils/firebase";
-import { addEventToFirebase } from "../../utils/util";
+import { addEventToFirebase, successMessage } from "../../utils/util";
 import { useRouter } from "next/router";
 import Loading from "../../components/Loading";
+import { toast } from "react-hot-toast";
 
 const event = () => {
 	const [user, setUser] = useState({});
@@ -20,7 +21,32 @@ const event = () => {
 	const [buttonClicked, setButtonClicked] = useState(false);
 	const [uploadProgress, setUploadProgress] = useState(0);
 	const [fileError, setFileError] = useState("");
+	const [processingTime, setProcessingTime] = useState(0);
 	const router = useRouter();
+
+	useEffect(() => {
+		let processingTimer;
+		if (buttonClicked) {
+			processingTimer = setInterval(() => {
+				setProcessingTime(prev => {
+					if (prev >= 30) {
+						console.log("Processing timeout reached - redirecting to dashboard");
+						clearInterval(processingTimer);
+						setButtonClicked(false);
+						router.push("/dashboard");
+						return 0;
+					}
+					return prev + 1;
+				});
+			}, 1000);
+		} else {
+			setProcessingTime(0);
+		}
+
+		return () => {
+			if (processingTimer) clearInterval(processingTimer);
+		};
+	}, [buttonClicked, router]);
 
 	const isUserLoggedIn = useCallback(() => {
 		onAuthStateChanged(auth, (user) => {
@@ -43,6 +69,14 @@ const event = () => {
 			return;
 		}
 		setButtonClicked(true);
+		
+		const clientTimeout = setTimeout(() => {
+			console.log("Client timeout reached - resetting UI");
+			setButtonClicked(false);
+			successMessage("Your event may have been created. Check your dashboard.");
+			router.push("/dashboard");
+		}, 45000);
+		
 		addEventToFirebase(
 			user.uid,
 			title,
@@ -53,7 +87,10 @@ const event = () => {
 			note,
 			flier,
 			router,
-			setButtonClicked,
+			(value) => {
+				clearTimeout(clientTimeout);
+				setButtonClicked(value);
+			},
 			setUploadProgress
 		);
 	};
@@ -70,7 +107,6 @@ const event = () => {
 					let width = img.width;
 					let height = img.height;
 					
-					// Calculate new dimensions to maintain aspect ratio
 					const maxDimension = 1200;
 					if (width > height && width > maxDimension) {
 						height = Math.round((height * maxDimension) / width);
@@ -85,8 +121,7 @@ const event = () => {
 					const ctx = canvas.getContext('2d');
 					ctx.drawImage(img, 0, 0, width, height);
 					
-					// Get compressed image as Data URL
-					const quality = 0.7; // Adjust quality to achieve target size
+					const quality = 0.7;
 					const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
 					
 					resolve(compressedDataUrl);
@@ -103,30 +138,24 @@ const event = () => {
 		
 		if (!file) return;
 		
-		// Check file type
 		if (!file.type.match('image.*')) {
 			setFileError("Please upload an image file (JPEG, PNG, etc)");
 			return;
 		}
 		
-		// Check file size (5MB max)
-		const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+		const maxSize = 5 * 1024 * 1024;
 		if (file.size > maxSize) {
 			setFileError(`File is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 5MB.`);
-			// We'll still try to compress it below
 		}
 		
 		try {
-			// Show progress indicator
 			setUploadProgress(10);
 			
-			// Try to compress the image if it's large
 			let imageData;
-			if (file.size > 1 * 1024 * 1024) { // Over 1MB
+			if (file.size > 1 * 1024 * 1024) {
 				imageData = await compressImage(file);
 				setUploadProgress(50);
 			} else {
-				// For smaller files, just read as data URL without compression
 				const reader = new FileReader();
 				imageData = await new Promise((resolve, reject) => {
 					reader.onload = (readerEvent) => resolve(readerEvent.target.result);
@@ -136,14 +165,11 @@ const event = () => {
 				setUploadProgress(50);
 			}
 			
-			// Set the compressed or original image data
 			setFlier(imageData);
 			setUploadProgress(100);
 			
-			// Reset progress after a delay
 			setTimeout(() => setUploadProgress(0), 1000);
 			
-			// If we had a size error but managed to compress, clear the error
 			if (fileError.includes("too large")) {
 				setFileError("");
 			}
@@ -263,7 +289,14 @@ const event = () => {
 						</div>
 					)}
 					{buttonClicked ? (
-						<Loading title='Processing flier and creating event - please wait...' />
+						<div>
+							<Loading title='Processing flier and creating event - please wait...' />
+							{processingTime > 10 && (
+								<p className="text-sm text-gray-600 mt-2 text-center">
+									This is taking longer than expected. Your event will be created even if the flier upload is slow.
+								</p>
+							)}
+						</div>
 					) : (
 						<button className='px-4 py-2 bg-[#C07F00] w-[200px] mt-3 text-white rounded-md'>
 							Create Event

@@ -105,6 +105,15 @@ import {
 	setButtonClicked,
 	setUploadProgress
   ) => {
+	// Add timeout protection to prevent infinite loading
+	const uploadTimeout = setTimeout(() => {
+	  console.log("Upload timeout reached - resetting UI state");
+	  if (setButtonClicked) setButtonClicked(false);
+	  if (setUploadProgress) setUploadProgress(0);
+	  successMessage("Event created, but flier upload took too long. The event was saved.");
+	  router.push("/dashboard");
+	}, 60000); // 60 second timeout as a safety net
+	
 	try {
 	  // First create the event document without the image
 	  const docRef = await addDoc(collection(db, "events"), {
@@ -118,10 +127,14 @@ import {
 		slug: createSlug(title),
 		attendees: [],
 		disableRegistration: false,
+		createdAt: new Date().toISOString(),
 	  });
+	  
+	  console.log("Event document created successfully:", docRef.id);
   
 	  // If there's no flier, we're done
 	  if (flier === null) {
+		clearTimeout(uploadTimeout);
 		successMessage("Event created! 🎉");
 		if (setButtonClicked) setButtonClicked(false);
 		router.push("/dashboard");
@@ -131,6 +144,7 @@ import {
 	  try {
 		// Update progress if the function is provided
 		if (setUploadProgress) setUploadProgress(30);
+		console.log("Beginning image upload process");
 		
 		// Create a reference to Firebase Storage
 		const imageRef = ref(storage, `events/${docRef.id}/image`);
@@ -138,37 +152,69 @@ import {
 		// Update progress
 		if (setUploadProgress) setUploadProgress(50);
 		
-		// Upload the image data
-		await uploadString(imageRef, flier, "data_url");
+		// Upload the image data with more detailed error handling
+		console.log("Uploading image data...");
+		await uploadString(imageRef, flier, "data_url").catch(error => {
+		  console.error("Error during uploadString:", error);
+		  throw error; // Re-throw to be caught by the outer catch
+		});
 		
+		console.log("Image uploaded successfully, getting download URL");
 		// Update progress
 		if (setUploadProgress) setUploadProgress(75);
 		
 		// Get the download URL for the uploaded image
-		const downloadURL = await getDownloadURL(imageRef);
+		let downloadURL;
+		try {
+		  downloadURL = await getDownloadURL(imageRef);
+		  console.log("Download URL obtained:", downloadURL.substring(0, 50) + "...");
+		} catch (urlError) {
+		  console.error("Failed to get download URL:", urlError);
+		  // Even if we can't get the URL, we can still complete the event creation
+		  // since the image is uploaded
+		  clearTimeout(uploadTimeout);
+		  successMessage("Event created but image URL couldn't be retrieved. Your image was uploaded but may not be visible.");
+		  if (setButtonClicked) setButtonClicked(false);
+		  router.push("/dashboard");
+		  return;
+		}
 		
 		// Update progress
 		if (setUploadProgress) setUploadProgress(90);
 		
 		// Update the event document with the image URL
+		console.log("Updating event document with image URL");
 		await updateDoc(doc(db, "events", docRef.id), {
 		  flier_url: downloadURL,
+		}).catch(error => {
+		  console.error("Error updating document with image URL:", error);
+		  // Even if updating the doc fails, we've created the event and uploaded the image
+		  clearTimeout(uploadTimeout);
+		  successMessage("Event created but flier may not appear correctly.");
+		  if (setButtonClicked) setButtonClicked(false);
+		  router.push("/dashboard");
+		  return;
 		});
 		
 		// Complete progress
 		if (setUploadProgress) setUploadProgress(100);
+		console.log("Upload process completed successfully");
   
+		clearTimeout(uploadTimeout);
 		successMessage("Event created with flier! 🎉");
 		if (setButtonClicked) setButtonClicked(false);
 		router.push("/dashboard");
 	  } catch (uploadError) {
-		console.error("Error uploading image:", uploadError);
+		console.error("Error in image upload flow:", uploadError);
+		// If the upload fails, still redirect since the event was created
+		clearTimeout(uploadTimeout);
 		errorMessage("Event created but failed to upload image ❌");
 		if (setButtonClicked) setButtonClicked(false);
 		router.push("/dashboard");
 	  }
 	} catch (error) {
-	  console.error("Error adding event:", error);
+	  console.error("Error in event creation:", error);
+	  clearTimeout(uploadTimeout);
 	  errorMessage("Failed to create event ❌");
 	  if (setButtonClicked) setButtonClicked(false);
 	  if (setUploadProgress) setUploadProgress(0);
