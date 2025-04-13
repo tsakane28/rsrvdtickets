@@ -290,7 +290,10 @@ const event = () => {
 					)}
 					{buttonClicked ? (
 						<div>
-							<Loading title='Processing flier and creating event - please wait...' />
+							<Loading 
+								title='Processing flier and creating event - please wait...' 
+								progress={uploadProgress > 0 ? uploadProgress : null}
+							/>
 							{processingTime > 10 && (
 								<p className="text-sm text-gray-600 mt-2 text-center">
 									This is taking longer than expected. Your event will be created even if the flier upload is slow.
