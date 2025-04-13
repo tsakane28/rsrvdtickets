@@ -10,6 +10,7 @@ import { useRouter } from "next/router";
 import RegClosed from "../../../components/RegClosed";
 import ErrorPage from "../../../components/ErrorPage";
 import Loading from "../../../components/Loading";
+import AccountRegistration from "../../../components/AccountRegistration";
 
 export async function getServerSideProps(context) {
 	const docRef = doc(db, "events", context.query.id);
@@ -28,19 +29,16 @@ export async function getServerSideProps(context) {
 const RegisterPage = ({ event }) => {
 	const [success, setSuccess] = useState(false);
 	const [loading, setLoading] = useState(false);
-	const [name, setName] = useState("");
-	const [email, setEmail] = useState("");
 	const [showPayment, setShowPayment] = useState(false);
 	const [paymentComplete, setPaymentComplete] = useState(false);
-	const { query, router } = useRouter();
+	const [name, setName] = useState("");
+	const [email, setEmail] = useState("");
+	const { query } = useRouter();
 
-	const handleSubmit = async (e) => {
-		e.preventDefault();
-		
-		// Create user account logic here
-		await createAccount(email, password); // Ensure you have a password state
+	const handleAccountCreated = () => {
+		setShowPayment(true); // Show payment form after account creation
 	};
-	
+
 	const handlePaymentSuccess = async () => {
 		// Verify payment with our API endpoint
 		try {
@@ -102,18 +100,7 @@ const RegisterPage = ({ event }) => {
 			window.removeEventListener('message', handlePayPalMessage);
 		};
 	}, []);
-	
-	const createAccount = async (email, password) => {
-		try {
-			// Call your account creation function (e.g., firebaseCreateUser)
-			await firebaseCreateUser(email, password, router); // Ensure you have a password field
-			alert("Account created successfully! You can now register for events.");
-		} catch (error) {
-			console.error("Account creation error:", error);
-			alert("Failed to create account: " + error.message);
-		}
-	};
-	
+
 	if (loading) {
 		return <Loading title='Generating your ticket🤞🏼' />;
 	}
@@ -143,42 +130,7 @@ const RegisterPage = ({ event }) => {
 					</h2>
 					
 					{!showPayment ? (
-						<form
-							className='w-full flex flex-col justify-center'
-							onSubmit={handleSubmit}
-						>
-							<label htmlFor='name'>Full name</label>
-							<div className='w-full relative'>
-								<input
-									type='text'
-									name='name'
-									value={name}
-									onChange={(e) => setName(e.target.value)}
-									className='border px-10 py-2 mb-3 rounded-md w-full'
-									required
-								/>
-								<FaUserAlt className=' absolute left-4 top-3 text-gray-300' />
-							</div>
-
-							<label htmlFor='email'>Email address</label>
-							<div className='w-full relative'>
-								<input
-									type='email'
-									name='email'
-									value={email}
-									onChange={(e) => setEmail(e.target.value)}
-									className='border px-10 py-2 mb-3 rounded-md w-full'
-									required
-								/>
-								<HiMail className=' absolute left-4 top-3 text-gray-300 text-xl' />
-							</div>
-							<button
-								type='submit'
-								className='bg-[#FFD95A] p-3 font-medium hover:bg-[#C07F00] hover:text-[#FFF8DE] mb-3 rounded-md'
-							>
-								CONTINUE TO PAYMENT
-							</button>
-						</form>
+						<AccountRegistration onAccountCreated={handleAccountCreated} />
 					) : (
 						<div className='w-full flex flex-col items-center'>
 							<div className='mb-5 text-center'>
