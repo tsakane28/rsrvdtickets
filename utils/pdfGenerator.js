@@ -107,7 +107,6 @@ exports.generateTicketPdf = async (options) => {
       position: relative;
       z-index: 2;
       /* Add semi-transparent overlay to ensure text readability */
-      background: linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 70%, transparent 100%);
     }
     
     .header {
@@ -354,7 +353,7 @@ exports.generateTicketPdf = async (options) => {
         doc.font('Helvetica-Bold').fontSize(11).fillColor('#ffffff');
         doc.text('TICKET ID', 30, 140);
         
-        doc.roundedRect(30, 160, 150, 30, 15).fill('rgba(255, 255, 255, 0.15)');
+        doc.roundedRect(30, 160, 150, 30, 15).fill('rgba(255, 255, 255, 0)');
         doc.font('Helvetica').fontSize(14).fillColor('#ffffff');
         doc.text(passcode, 45, 168);
         
