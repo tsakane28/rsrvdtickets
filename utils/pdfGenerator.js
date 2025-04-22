@@ -105,8 +105,8 @@ exports.generateTicketPdf = async (options) => {
       flex-direction: column;
       position: relative;
       z-index: 2;
-      /* Add semi-transparent overlay to ensure text readability */
-       }
+      /* Remove the dark overlay to show background image clearly */
+    }
     
     .header {
       margin-bottom: 16px;
@@ -156,7 +156,8 @@ exports.generateTicketPdf = async (options) => {
       margin-top: 5px;
       margin-left: 3px;
       padding: 6px 12px;
-      background-color: rgb(255, 0, 0);
+      background-color: white;
+      color: black;
       border-radius: 20px;
       font-size: 14px;
       font-weight: 500;
@@ -326,9 +327,6 @@ exports.generateTicketPdf = async (options) => {
           doc.roundedRect(440, 0, 160, 220, 10, 0, 10, 0).fill('#f7b733');
         }
         
-        // Add semi-transparent overlay for text readability
-        doc.rect(0, 0, 440, 220).fill('rgba(0, 0, 0, 0.4)');
-        
         // Add event title
         doc.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff');
         doc.text(title, 30, 30, { width: 380 });
@@ -338,18 +336,19 @@ exports.generateTicketPdf = async (options) => {
         doc.text(`${date} • ${time}`, 30, 60, { width: 380 });
         
         // Add attendee info
-        doc.font('Helvetica-Bold').fontSize(11).fillColor('#ffffff');
+        doc.font('Helvetica-Bold').fontSize(11).fillColor('#30c017'); // Green color to match HTML
         doc.text('ATTENDEE', 30, 90);
         
         doc.font('Helvetica').fontSize(14).fillColor('#ffffff');
         doc.text(name, 30, 110, { width: 380 });
         
         // Add ticket ID
-        doc.font('Helvetica-Bold').fontSize(11).fillColor('#ffffff');
+        doc.font('Helvetica-Bold').fontSize(11).fillColor('#30c017'); // Green color to match HTML
         doc.text('TICKET ID', 30, 140);
         
-        doc.roundedRect(30, 160, 150, 30, 15).fill('rgba(0, 0, 0, 0)');
-        doc.font('Helvetica').fontSize(14).fillColor('#ffffff');
+        // Change to white background with black text for ticket ID
+        doc.roundedRect(30, 160, 150, 30, 15).fill('#ffffff');
+        doc.font('Helvetica').fontSize(14).fillColor('#000000'); // Black text
         doc.text(passcode, 45, 168);
         
         // Add QR code section
