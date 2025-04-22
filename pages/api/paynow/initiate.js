@@ -1,6 +1,8 @@
 import { Paynow } from "paynow";
 import { db } from "../../../utils/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { registerAttendee } from "../../../utils/util";
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -81,3 +83,66 @@ export default async function handler(req, res) {
     });
   }
 } 
+
+export async function fixPayment(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
+  }
+
+  try {
+    const { reference, email } = req.body;
+    
+    // Find the payment by reference
+    const paymentsQuery = query(
+      collection(db, "payments"),
+      where("reference", "==", reference)
+    );
+    
+    const snapshot = await getDocs(paymentsQuery);
+    
+    if (snapshot.empty) {
+      return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+    
+    // Update the first matching payment
+    const paymentDoc = snapshot.docs[0];
+    const paymentData = paymentDoc.data();
+    
+    await updateDoc(doc(db, "payments", paymentDoc.id), {
+      status: "paid",
+      statusUpdatedAt: serverTimestamp(),
+      manuallyVerified: true
+    });
+    
+    // Register the attendee if we have the data
+    if (paymentData.email && paymentData.name && paymentData.eventId) {
+      // Create payment info
+      const paymentInfo = {
+        paymentId: paymentDoc.id,
+        amount: paymentData.amount || 0,
+        timestamp: new Date().toISOString(),
+        status: 'COMPLETED',
+        paid: true
+      };
+      
+      await registerAttendee(
+        paymentData.name, 
+        paymentData.email, 
+        paymentData.eventId, 
+        null, null, paymentInfo
+      );
+    }
+    
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Payment marked as paid and attendee registered' 
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error processing request',
+      error: error.message
+    });
+  }
+}
