@@ -52,12 +52,20 @@ export default async function handler(req, res) {
       console.log(`Updated existing payment record: ${paymentsSnapshot.docs[0].id}`);
     } else {
       // No existing record found, create new one based on the reference
-      // First extract event ID from the reference (assuming format Ticket-{eventId})
-      const eventIdMatch = reference.match(/Ticket-(.*)/);
+      // Extract event ID from reference (format: ticket-{eventId}-{timestamp})
+      const eventIdMatch = reference.match(/ticket-(.*?)-\d+/);
       let eventId = null;
       
       if (eventIdMatch && eventIdMatch.length > 1) {
         eventId = eventIdMatch[1];
+        console.log(`Extracted event ID from reference: ${eventId}`);
+      } else {
+        // Try legacy format (Ticket-{eventId})
+        const legacyMatch = reference.match(/Ticket-(.*)/);
+        if (legacyMatch && legacyMatch.length > 1) {
+          eventId = legacyMatch[1];
+          console.log(`Extracted event ID from legacy reference: ${eventId}`);
+        }
       }
       
       // Save as a new payment record

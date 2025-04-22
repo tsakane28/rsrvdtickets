@@ -102,14 +102,29 @@ export default async function handler(req, res) {
     
     // As a fallback, check the legacy payments using reference format
     console.log("Checking legacy payment records");
-    const legacyPaymentsQuery = query(
+
+    // Try new format first: ticket-{eventId}-{timestamp}
+    const newFormatQuery = query(
       paymentsCollectionRef,
-      where("reference", "==", `Ticket-${event_id}`),
-      orderBy("timestamp", "desc"),
+      where("reference", ">=", `ticket-${event_id}-`),
+      where("reference", "<=", `ticket-${event_id}-\uf8ff`),
+      orderBy("reference", "desc"),
       limit(1)
     );
-    
-    const legacyPaymentsSnapshot = await getDocs(legacyPaymentsQuery);
+
+    let legacyPaymentsSnapshot = await getDocs(newFormatQuery);
+
+    // If no results, try old format
+    if (legacyPaymentsSnapshot.empty) {
+      const oldFormatQuery = query(
+        paymentsCollectionRef,
+        where("reference", "==", `Ticket-${event_id}`),
+        orderBy("timestamp", "desc"),
+        limit(1)
+      );
+      
+      legacyPaymentsSnapshot = await getDocs(oldFormatQuery);
+    }
     
     if (!legacyPaymentsSnapshot.empty) {
       const paymentData = legacyPaymentsSnapshot.docs[0].data();

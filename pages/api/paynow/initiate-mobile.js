@@ -17,13 +17,22 @@ export default async function handler(req, res) {
     // Create Paynow instance with provided integration details
     const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
     
-    // Set return and result URLs
-    const baseUrl = req.headers.origin || process.env.NEXT_PUBLIC_BASE_URL;
-    paynow.resultUrl = `${baseUrl}/api/paynow/update`;
-    paynow.returnUrl = `${baseUrl}/api/paynow/return?event_id=${eventId}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
+    // Generate a unique merchant reference for this payment
+    const merchantReference = `ticket-${eventId}-${Date.now()}`;
     
-    // Create payment with event name as reference
-    const payment = paynow.createPayment(`Ticket-${eventId}`, email);
+    // Set return and result URLs
+    const baseUrl = req.headers.origin || process.env.NEXT_PUBLIC_BASE_URL || "https://rsrvdtickets.vercel.app";
+    
+    // Result URL - where Paynow sends webhook callbacks
+    paynow.resultUrl = `${baseUrl}/api/paynow/update`;
+    
+    // Return URL - where user is redirected after payment, with query parameters as per Paynow guidelines
+    paynow.returnUrl = `${baseUrl}/register/${eventId}/pending?gateway=paynow&merchantReference=${merchantReference}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
+    
+    console.log(`Setting mobile return URL: ${paynow.returnUrl}`);
+    
+    // Create payment with event name as reference and email
+    const payment = paynow.createPayment(merchantReference, email);
     
     // Add ticket as item
     payment.add(`Ticket for ${eventTitle}`, parseFloat(amount));
@@ -49,17 +58,19 @@ export default async function handler(req, res) {
         amount: parseFloat(amount),
         phoneNumber,
         mobileMethod: method,
-        reference: `Ticket-${eventId}`,
+        reference: merchantReference,
         pollUrl: response.pollUrl,
         instructions: response.instructions,
         status: "pending",
         initiated: serverTimestamp(),
         method: "paynow-mobile",
-        paymentId
+        paymentId,
+        returnUrl: paynow.returnUrl
       });
       
       // Add payment ID to the response
       response.paymentId = paymentId;
+      response.merchantReference = merchantReference;
     }
     
     // Directly pass through the Paynow response structure
