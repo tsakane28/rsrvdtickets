@@ -10,6 +10,7 @@ import { useRouter } from "next/router";
 import RegClosed from "../../../components/RegClosed";
 import ErrorPage from "../../../components/ErrorPage";
 import Loading from "../../../components/Loading";
+import { Paynow } from "paynow";
 
 export async function getServerSideProps(context) {
 	const docRef = doc(db, "events", context.query.id);
@@ -32,6 +33,9 @@ const RegisterPage = ({ event }) => {
 	const [email, setEmail] = useState("");
 	const [showPayment, setShowPayment] = useState(false);
 	const [paymentComplete, setPaymentComplete] = useState(false);
+	const [paynowError, setPaynowError] = useState("");
+	const [pollUrl, setPollUrl] = useState("");
+	const [redirectUrl, setRedirectUrl] = useState("");
 	const { query } = useRouter();
 
 	const handleSubmit = (e) => {
@@ -41,64 +45,155 @@ const RegisterPage = ({ event }) => {
 		setShowPayment(true);
 	};
 	
-	const handlePaymentSuccess = async () => {
-		// Verify payment with our API endpoint
+	const initiatePaynowPayment = async () => {
 		try {
-			// In a real implementation, these values would come from PayPal
-			const verifyResponse = await fetch('/api/verify-payment', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					paymentId: 'sample-payment-id',
-					payerId: 'sample-payer-id',
-					orderId: 'sample-order-id',
-				}),
-			});
-
-			const verifyData = await verifyResponse.json();
+			setLoading(true);
 			
-			if (verifyData.success) {
-				// Only register attendee after payment is verified
-				console.log("Payment verified successfully, registering with event_id:", query.id);
-				setPaymentComplete(true);
-				setLoading(true);
+			// Create Paynow instance with provided integration details
+			const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
+			
+			// Set return and result URLs
+			const baseUrl = window.location.origin;
+			paynow.resultUrl = `${baseUrl}/api/paynow/update`;
+			paynow.returnUrl = `${baseUrl}/api/paynow/return?event_id=${query.id}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
+			
+			// Create payment with event name as reference
+			const payment = paynow.createPayment(`Ticket-${query.id}`);
+			
+			// Add ticket as item (using event title and price)
+			const ticketPrice = event.price || 10; // Default to 10 if price not specified
+			payment.add(`Ticket for ${event.title}`, ticketPrice);
+			
+			// Send payment to Paynow
+			const response = await paynow.send(payment);
+			
+			setLoading(false);
+			
+			if (response.success) {
+				// Save the poll URL for checking payment status
+				setPollUrl(response.pollUrl);
+				setRedirectUrl(response.redirectUrl);
 				
-				// Create payment info object from verified payment
-				const paymentInfo = {
-					paymentId: 'sample-payment-id', // In real app, use actual PayPal paymentId
-					amount: verifyData.details.amount,
-					currency: verifyData.details.currency,
-					timestamp: new Date().toISOString(),
-					status: verifyData.details.status,
-					paid: true
-				};
+				// Open Paynow in new window
+				window.open(response.redirectUrl, "_blank");
 				
-				// Pass payment info to registerAttendee
-				registerAttendee(name, email, query.id, setSuccess, setLoading, paymentInfo);
-				setEmail("");
-				setName("");
+				// Start polling for payment status
+				startPolling(response.pollUrl);
 			} else {
-				alert("Payment verification failed: " + verifyData.message);
-				setPaymentComplete(false);
+				setPaynowError("Failed to initiate payment: " + response.error);
 			}
 		} catch (error) {
-			console.error("Payment verification error:", error);
-			alert("Payment verification error: " + error.message);
-			setPaymentComplete(false);
+			setLoading(false);
+			setPaynowError("Payment error: " + error.message);
+			console.error("Paynow payment error:", error);
 		}
 	};
 	
-	// Monitor payment callbacks from PayPal
+	const initiatePaynowMobilePayment = async (phoneNumber, method) => {
+		try {
+			setLoading(true);
+			
+			// Create Paynow instance
+			const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
+			
+			// Set return and result URLs
+			const baseUrl = window.location.origin;
+			paynow.resultUrl = `${baseUrl}/api/paynow/update`;
+			paynow.returnUrl = `${baseUrl}/api/paynow/return?event_id=${query.id}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
+			
+			// Create payment with event name as reference
+			const payment = paynow.createPayment(`Ticket-${query.id}`, email);
+			
+			// Add ticket as item
+			const ticketPrice = event.price || 10; // Default to 10 if price not specified
+			payment.add(`Ticket for ${event.title}`, ticketPrice);
+			
+			// Send mobile payment to Paynow
+			const response = await paynow.sendMobile(payment, phoneNumber, method);
+			
+			setLoading(false);
+			
+			if (response.success) {
+				// Save the poll URL and instructions
+				setPollUrl(response.pollUrl);
+				alert(response.instructions);
+				
+				// Start polling for payment status
+				startPolling(response.pollUrl);
+			} else {
+				setPaynowError("Failed to initiate mobile payment: " + response.error);
+			}
+		} catch (error) {
+			setLoading(false);
+			setPaynowError("Mobile payment error: " + error.message);
+			console.error("Paynow mobile payment error:", error);
+		}
+	};
+	
+	const startPolling = async (url) => {
+		try {
+			// Create Paynow instance
+			const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
+			
+			// Set up interval to check payment status
+			const pollInterval = setInterval(async () => {
+				try {
+					const status = await paynow.pollTransaction(url);
+					
+					if (status.paid()) {
+						clearInterval(pollInterval);
+						handlePaymentSuccess(status);
+					}
+				} catch (error) {
+					console.error("Error polling transaction:", error);
+				}
+			}, 5000); // Check every 5 seconds
+			
+			// Clear interval after 10 minutes (timeout)
+			setTimeout(() => {
+				clearInterval(pollInterval);
+			}, 10 * 60 * 1000);
+			
+		} catch (error) {
+			console.error("Error setting up polling:", error);
+		}
+	};
+	
+	const handlePaymentSuccess = async (paymentStatus) => {
+		try {
+			setPaymentComplete(true);
+			setLoading(true);
+			
+			// Create payment info object from Paynow status
+			const paymentInfo = {
+				paymentId: paymentStatus.reference || 'paynow-payment',
+				amount: paymentStatus.amount,
+				currency: 'ZWL', // Zimbabwe currency
+				timestamp: new Date().toISOString(),
+				status: 'COMPLETED',
+				paid: true,
+				provider: 'Paynow'
+			};
+			
+			// Register attendee with payment info
+			registerAttendee(name, email, query.id, setSuccess, setLoading, paymentInfo);
+			setEmail("");
+			setName("");
+		} catch (error) {
+			console.error("Payment success handling error:", error);
+			setLoading(false);
+		}
+	};
+	
+	// For compatibility with the existing PayPal implementation
 	const handlePayPalMessage = (event) => {
-		// Check if the message is from PayPal and payment was successful
 		if (event.data === 'paypal-payment-success') {
-			handlePaymentSuccess();
+			// This is left for compatibility with existing PayPal integration
+			// In a production app, you would probably want to remove this eventually
 		}
 	};
 	
-	// Listen for messages (for PayPal callback)
+	// Listen for messages (for PayPal callback - kept for compatibility)
 	React.useEffect(() => {
 		window.addEventListener('message', handlePayPalMessage);
 		return () => {
@@ -107,7 +202,7 @@ const RegisterPage = ({ event }) => {
 	}, []);
 	
 	if (loading) {
-		return <Loading title='Generating your ticket🤞🏼' />;
+		return <Loading title='Processing your request🤞🏼' />;
 	}
 	if (!event.title) {
 		return <ErrorPage />;
@@ -179,59 +274,96 @@ const RegisterPage = ({ event }) => {
 									<p className='font-bold'>{event.title}</p>
 									<p>Name: {name}</p>
 									<p>Email: {email}</p>
+									<p className='font-bold mt-2'>Amount: ${event.price || 10}</p>
 								</div>
 							</div>
 							
-							{!paymentComplete ? (
-								<div className='w-full flex justify-center mb-4'>
-									<style jsx>{`
-										.pp-5DQJWXVXVDQG6 {
-											text-align: center;
-											border: none;
-											border-radius: 0.25rem;
-											min-width: 11.625rem;
-											padding: 0 2rem;
-											height: 2.625rem;
-											font-weight: bold;
-											background-color: #FFD140;
-											color: #000000;
-											font-family: "Helvetica Neue", Arial, sans-serif;
-											font-size: 1rem;
-											line-height: 1.25rem;
-											cursor: pointer;
-										}
-									`}</style>
-									<form 
-										action="https://www.sandbox.paypal.com/ncp/payment/5DQJWXVXVDQG6" 
-										method="post" 
-										target="_blank" 
-										style={{display: 'inline-grid', justifyItems: 'center', alignContent: 'start', gap: '0.5rem'}}
-										onSubmit={(e) => {
-											// Prevent the default form submission to handle it ourselves
-											e.preventDefault();
-											
-											// Open PayPal in a new window manually
-											window.open("https://www.sandbox.paypal.com/ncp/payment/5DQJWXVXVDQG6", "_blank");
-											
-											// In real implementation with PayPal callback:
-											// 1. PayPal would redirect to a return URL after payment
-											// 2. Or we'd use the PayPal JavaScript SDK to handle the completion
-											// For now, simulate payment completion after 2 seconds
-											setTimeout(() => handlePaymentSuccess(), 2000);
-										}}
-									>
-										<input className="pp-5DQJWXVXVDQG6" type="submit" value="Get a Ticket" />
-										<img src="https://www.paypalobjects.com/images/Debit_Credit_APM.svg" alt="cards" />
-										<section> Powered by <img src="https://www.paypalobjects.com/paypal-ui/logos/svg/paypal-wordmark-color.svg" alt="paypal" style={{height: '0.875rem', verticalAlign: 'middle'}}/></section>
-									</form>
+							{paynowError && (
+								<div className='bg-red-100 text-red-700 p-3 rounded-md mb-4'>
+									{paynowError}
+								</div>
+							)}
+							
+							{!paymentComplete && !redirectUrl ? (
+								<div className='w-full'>
+									<div className='flex justify-center mb-4'>
+										<button
+											onClick={initiatePaynowPayment}
+											className='bg-[#FFD140] text-black font-bold py-2 px-6 rounded-md hover:bg-[#E5BC3A]'
+										>
+											Pay with Paynow
+										</button>
+									</div>
+									
+									<div className='mt-5 border-t pt-5'>
+										<p className='text-center mb-3 font-medium'>Pay with mobile money</p>
+										<div className='flex flex-col'>
+											<div className='mb-3'>
+												<label htmlFor='phone' className='block mb-1'>Phone Number</label>
+												<input 
+													type='tel' 
+													id='phone' 
+													placeholder='07xx xxx xxx'
+													className='border px-4 py-2 rounded-md w-full'
+												/>
+											</div>
+											<div className='flex space-x-3'>
+												<button
+													onClick={() => {
+														const phoneNumber = document.getElementById('phone').value;
+														if (!phoneNumber) {
+															alert('Please enter a phone number');
+															return;
+														}
+														initiatePaynowMobilePayment(phoneNumber, 'ecocash');
+													}}
+													className='bg-[#4CAF50] text-white font-bold py-2 px-4 rounded-md flex-1'
+												>
+													Ecocash
+												</button>
+												<button
+													onClick={() => {
+														const phoneNumber = document.getElementById('phone').value;
+														if (!phoneNumber) {
+															alert('Please enter a phone number');
+															return;
+														}
+														initiatePaynowMobilePayment(phoneNumber, 'onemoney');
+													}}
+													className='bg-[#2196F3] text-white font-bold py-2 px-4 rounded-md flex-1'
+												>
+													OneMoney
+												</button>
+											</div>
+										</div>
+									</div>
 								</div>
 							) : (
+								!paymentComplete && (
+									<div className='text-center'>
+										<p>Payment initiated. Please complete your payment.</p>
+										<button
+											onClick={() => window.open(redirectUrl, "_blank")}
+											className='bg-[#FFD140] text-black font-bold py-2 px-6 rounded-md hover:bg-[#E5BC3A] mt-3'
+										>
+											Open Paynow Again
+										</button>
+									</div>
+								)
+							)}
+							
+							{paymentComplete && (
 								<p className='text-green-600 font-bold mb-4'>Payment successful! Generating your ticket...</p>
 							)}
 							
 							<button
-								className='text-blue-600 underline'
-								onClick={() => setShowPayment(false)}
+								className='text-blue-600 underline mt-3'
+								onClick={() => {
+									setShowPayment(false);
+									setPaynowError("");
+									setRedirectUrl("");
+									setPollUrl("");
+								}}
 							>
 								Go back
 							</button>
