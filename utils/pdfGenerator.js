@@ -38,210 +38,211 @@ function getChromePath() {
 exports.generateTicketPdf = async (options) => {
   const { name, passcode, time, date, title, qrCodeData, backgroundImage } = options;
   
-  // Default background image if not provided (base64 string of concert image)
-  const defaultBackgroundImage = 'BACKGROUND_IMAGE_BASE64_PLACEHOLDER'; // This would be replaced with actual base64
-  const ticketBackground = backgroundImage || defaultBackgroundImage;
+  // Path to the background image in public directory
+  const backgroundImagePath = '/veri/tickback.png';
   
   // Create a modern HTML template with custom background image
   const htmlTemplate = `
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>${title} - Ticket</title>
-      <style>
-        /* Modern, clean font stack */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title} - Ticket</title>
+  <style>
+    /* Modern, clean font stack */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    
+    .ticket-container {
+      width: 600px;
+      height: 220px;
+      position: relative;
+    }
+    
+    .ticket {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 600px;
+      height: 220px;
+      display: flex;
+      overflow: hidden;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      color: white;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+    
+    .ticket-background {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    
+    .content-area {
+      flex: 1;
+      padding: 20px 25px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      z-index: 2;
+      /* Add semi-transparent overlay to ensure text readability */
+      background: linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 70%, transparent 100%);
+    }
+    
+    .header {
+      margin-bottom: 16px;
+    }
+    
+    .event-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #ffffff;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+    
+    .event-details {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .detail-row {
+      display: flex;
+      align-items: baseline;
+    }
+    
+    .datetime {
+      color: #add6ff;
+      font-size: 14px;
+      margin-bottom: 12px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    
+    .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.7);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 3px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    
+    .value {
+      font-size: 14px;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    
+    .ticket-number {
+      display: inline-block;
+      margin-top: 5px;
+      margin-left: 3px;
+      padding: 6px 12px;
+      background-color: rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .qr-section {
+      width: 160px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 2;
+    }
+    
+    .qr-code-container {
+      background-color: white;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    
+    .qr-code {
+      width: 100px;
+      height: 100px;
+      display: block;
+    }
+    
+    /* The verified badge is already in the background image */
+    .verified-badge {
+      display: none;
+    }
+    
+    .divider {
+      display: none; /* No need for divider as it's part of the background */
+    }
+    
+    .footer {
+      margin-top: auto;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.6);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+  <div class="ticket-container">
+    <div class="ticket">
+      <img class="ticket-background" src="${backgroundImagePath}" alt="Ticket Background" />
+      <div class="content-area">
+        <div class="header">
+          <div class="event-title">${title}</div>
+          <div class="datetime">${date} • ${time}</div>
+        </div>
         
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
-        
-        body {
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-          background-color: transparent;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-        }
-        
-        .ticket-container {
-          width: 600px;
-          height: 220px;
-          position: relative;
-        }
-        
-        .ticket {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 600px;
-          height: 220px;
-          display: flex;
-          overflow: hidden;
-          border-radius: 12px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-          color: white;
-          background-size: cover;
-          background-position: center;
-          background-repeat: no-repeat;
-        }
-        
-        .ticket-background {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          z-index: 1;
-        }
-        
-        .content-area {
-          flex: 1;
-          padding: 20px 25px;
-          display: flex;
-          flex-direction: column;
-          position: relative;
-          z-index: 2;
-          /* Add semi-transparent overlay to ensure text readability */
-          background: linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 70%, transparent 100%);
-        }
-        
-        .header {
-          margin-bottom: 16px;
-        }
-        
-        .event-title {
-          font-size: 22px;
-          font-weight: 700;
-          margin-bottom: 4px;
-          color: #ffffff;
-          text-shadow: 0 1px 3px rgba(0,0,0,0.6);
-        }
-        
-        .event-details {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        
-        .detail-row {
-          display: flex;
-          align-items: baseline;
-        }
-        
-        .datetime {
-          color: #add6ff;
-          font-size: 14px;
-          margin-bottom: 12px;
-          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-        }
-        
-        .label {
-          font-size: 11px;
-          text-transform: uppercase;
-          color: rgba(255, 255, 255, 0.7);
-          font-weight: 600;
-          letter-spacing: 0.5px;
-          margin-bottom: 3px;
-          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-        }
-        
-        .value {
-          font-size: 14px;
-          color: white;
-          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-        }
-        
-        .ticket-number {
-          display: inline-block;
-          padding: 4px 12px;
-          background-color: rgba(255, 255, 255, 0.15);
-          border-radius: 20px;
-          font-size: 14px;
-          font-weight: 500;
-        }
-        
-        .qr-section {
-          width: 160px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          position: relative;
-          z-index: 2;
-        }
-        
-        .qr-code-container {
-          background-color: white;
-          padding: 10px;
-          border-radius: 8px;
-          margin-bottom: 10px;
-        }
-        
-        .qr-code {
-          width: 100px;
-          height: 100px;
-          display: block;
-        }
-        
-        /* The verified badge is already in the background image */
-        .verified-badge {
-          display: none;
-        }
-        
-        .divider {
-          display: none; /* No need for divider as it's part of the background */
-        }
-        
-        .footer {
-          margin-top: auto;
-          font-size: 10px;
-          color: rgba(255, 255, 255, 0.6);
-          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-        }
-      </style>
-    </head>
-    <body>
-      <div class="ticket-container">
-        <div class="ticket">
-          <img class="ticket-background" src="${ticketBackground}" alt="Ticket Background" />
-          <div class="content-area">
-            <div class="header">
-              <div class="event-title">${title}</div>
-              <div class="datetime">${date} • ${time}</div>
-            </div>
-            
-            <div class="event-details">
-              <div>
-                <div class="label">Attendee</div>
-                <div class="value">${name}</div>
-              </div>
-              
-              <div>
-                <div class="label">Ticket ID</div>
-                <div class="ticket-number">${passcode}</div>
-              </div>
-            </div>
-            
-            <div class="footer">
-              RSRVD Event Ticketing System
-            </div>
+        <div class="event-details">
+          <div>
+            <div class="label">Attendee</div>
+            <div class="value">${name}</div>
           </div>
           
-          <div class="qr-section">
-            <div class="qr-code-container">
-              <img class="qr-code" src="${qrCodeData}" alt="QR Code" />
-            </div>
+          <div>
+            <div class="label">Ticket ID</div>
+            <div class="ticket-number">${passcode}</div>
           </div>
         </div>
+        
+        <div class="footer">
+          RSRVD Event Ticketing System
+        </div>
       </div>
-    </body>
-    </html>
+      
+      <div class="qr-section">
+        <div class="qr-code-container">
+          <img class="qr-code" src="${qrCodeData}" alt="QR Code" />
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
   `;
   
   try {
@@ -306,17 +307,19 @@ exports.generateTicketPdf = async (options) => {
           resolve(pdfData);
         });
         
-        // Try to use background image if available
+        // Try to use background image from file system
         try {
-          // If we have the background image, use it instead of drawing shapes
-          if (ticketBackground) {
-            const bgImage = ticketBackground.replace(/^data:image\/(png|jpg|jpeg);base64,/, '');
-            doc.image(Buffer.from(bgImage, 'base64'), 0, 0, {
+          // For PDFKit, we need to use the file from the file system
+          const bgImagePath = path.join(process.cwd(), 'public', 'veri', 'tickback.png');
+          
+          if (fs.existsSync(bgImagePath)) {
+            doc.image(bgImagePath, 0, 0, {
               width: 600,
               height: 220
             });
           } else {
-            // Fallback to original gradient design if no background image
+            console.error('Background image not found at:', bgImagePath);
+            // Fallback to original gradient design
             doc.rect(0, 0, 600, 220).fill('#302b63');
             doc.rect(0, 0, 230, 220).fill('#0f0c29');
             doc.roundedRect(440, 0, 160, 220, 10, 0, 10, 0).fill('#f7b733');
