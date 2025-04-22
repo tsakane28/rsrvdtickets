@@ -57,80 +57,30 @@ export default async function handler(req, res) {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>${eventData.title} - Ticket</title>
+        <script src="https://cdn.tailwindcss.com"></script>
         <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          
           * {
             box-sizing: border-box;
           }
-
+          
           body {
             margin: 0;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 0;
+            font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
             background-color: #f4f6f8;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 40px;
             min-height: 100vh;
+            padding: 40px;
           }
-
-          .ticket {
-            display: flex;
-            width: 600px;
-            height: 240px;
-            overflow: hidden;
-            color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
-          }
-
-          .ticket-left {
-            width: 220px;
-            height: 100%;
-            background-color: #0f0c29;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-          }
-
-          .ticket-left h2 {
-            margin: 20px 0;
-            font-size: 24px;
-            font-weight: 600;
-          }
-
-          .ticket-left .datetime {
-            font-size: 14px;
-            margin-top: 40px;
-          }
-
-          .ticket-middle {
-            width: 260px;
-            height: 100%;
-            background-color: #302b63;
-            padding: 20px;
-            position: relative;
-          }
-
-          .attendee-info {
-            margin-top: 40px;
-          }
-
-          .attendee-info .label {
-            font-size: 16px;
-            font-weight: bold;
-          }
-
-          .attendee-info .value {
-            font-size: 16px;
-            margin-left: 10px;
-          }
-
-          .divider {
-            position: absolute;
-            right: 0;
-            top: 40px;
-            bottom: 40px;
+          
+          .ticket-divider {
             width: 2px;
+            height: 80%;
+            align-self: center;
             background: repeating-linear-gradient(
               to bottom,
               rgba(255, 255, 255, 0.8),
@@ -138,46 +88,9 @@ export default async function handler(req, res) {
               transparent 4px,
               transparent 8px
             );
-          }
-
-          .ticket-right {
-            width: 120px;
-            height: 100%;
-            background-color: #f7b733;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-
-          .qr-container {
-            background-color: white;
-            padding: 10px;
-            border-radius: 5px;
-          }
-
-          .qr-container img {
-            width: 80px;
-            height: 80px;
-          }
-          
-          .print-info {
-            margin-top: 30px;
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-          }
-          
-          .print-button {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 8px 16px;
-            background-color: #302b63;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            text-decoration: none;
+            box-shadow: 0 0 2px rgba(255, 255, 255, 0.4);
+            filter: blur(0.3px);
+            mix-blend-mode: screen;
           }
           
           @media print {
@@ -188,43 +101,33 @@ export default async function handler(req, res) {
             .print-info {
               display: none;
             }
-            
-            .ticket {
-              box-shadow: none;
-            }
           }
         </style>
       </head>
       <body>
-        <div>
-          <div class="ticket">
-            <div class="ticket-left">
-              <h2>${eventData.title}</h2>
-              <div class="datetime">${eventData.date}, ${convertTo12HourFormat(eventData.time)}</div>
-            </div>
-            <div class="ticket-middle">
-              <div class="attendee-info">
-                <div>
-                  <span class="label">Ø=Ud</span>
-                  <span class="value">:${attendee.name}</span>
-                </div>
-                <div style="margin-top: 20px;">
-                  <span class="label">Ø<tŸ</span>
-                  <span class="value">:#${attendee.passcode}</span>
-                </div>
+        <div class="flex flex-col items-center">
+          <div class="flex w-[600px] h-[220px] overflow-hidden rounded-xl shadow-lg" style="background: linear-gradient(to right, #0f0c29, #302b63, #f7b733);">
+            <div class="flex flex-grow items-center gap-5 p-5">
+              <div class="flex flex-col">
+                <h2 class="text-xl font-semibold text-white m-0">${eventData.title}</h2>
+                <div class="text-sm text-[#add6ff] my-1">${eventData.date}, ${convertTo12HourFormat(eventData.time)}</div>
+                <div class="text-sm text-white my-0.5">👤 :${attendee.name}</div>
+                <div class="text-sm text-white my-0.5">🎟 :#${attendee.passcode}</div>
               </div>
-              <div class="divider"></div>
             </div>
-            <div class="ticket-right">
-              <div class="qr-container">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${attendee.passcode}" alt="QR Code" />
-              </div>
+            
+            <div class="ticket-divider"></div>
+            
+            <div class="flex w-[140px] items-center justify-center bg-white rounded-r-xl">
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${attendee.passcode}" alt="QR Code" class="w-[100px] h-[100px]" />
             </div>
           </div>
           
-          <div class="print-info">
-            <p>This is your ticket for the event. Please present it at the entrance.</p>
-            <button class="print-button" onclick="window.print()">Print Ticket</button>
+          <div class="mt-8 text-center text-gray-600">
+            <p class="text-sm">This is your ticket for the event. Please present it at the entrance.</p>
+            <button onclick="window.print()" class="mt-4 px-6 py-2 bg-[#302b63] text-white rounded-md hover:bg-[#1f1b45] transition-colors cursor-pointer">
+              Print Ticket
+            </button>
           </div>
         </div>
       </body>
