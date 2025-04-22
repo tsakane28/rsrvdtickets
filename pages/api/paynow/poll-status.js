@@ -31,23 +31,21 @@ export default async function handler(req, res) {
     // Log full response for debugging
     console.log('Paynow status response:', JSON.stringify(status));
     
-    // Return detailed response
+    // Return the status directly, using the paid() method as shown in documentation
     return res.status(200).json({
-      paid: status.paid ? status.paid() : false, // Safely call paid() if it exists
+      // This matches the documentation exactly - status.paid() is a method we need to call
+      paid: status.paid ? status.paid() : false,
       status: status.status || 'unknown',
       amount: status.amount,
       reference: status.reference,
-      pollSuccess: true
+      // Include the raw status object for completeness
+      rawStatus: status
     });
   } catch (error) {
-    console.error("Error polling Paynow transaction:", error);
-    
-    // Return more informative error
+    console.error("Error polling transaction:", error);
     return res.status(200).json({ 
       error: error.message || 'An error occurred while polling the transaction',
-      pollSuccess: false,
-      paid: false,
-      status: 'error'
+      paid: false
     });
   }
 } 

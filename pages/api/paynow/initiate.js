@@ -27,20 +27,14 @@ export default async function handler(req, res) {
     payment.add(`Ticket for ${eventTitle}`, parseFloat(amount));
     
     // Send payment to Paynow
+    console.log("Sending payment to Paynow...");
     const response = await paynow.send(payment);
     
-    if (response.success) {
-      return res.status(200).json({
-        success: true, 
-        pollUrl: response.pollUrl,
-        redirectUrl: response.redirectUrl
-      });
-    } else {
-      return res.status(400).json({ 
-        success: false, 
-        error: response.error || 'Failed to initiate payment'
-      });
-    }
+    // Log the complete response for debugging
+    console.log("Paynow response:", JSON.stringify(response));
+    
+    // Directly pass through the Paynow response structure, which includes success, error, redirectUrl, pollUrl
+    return res.status(200).json(response);
   } catch (error) {
     console.error("Paynow API error:", error);
     return res.status(500).json({ 

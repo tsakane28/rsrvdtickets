@@ -66,9 +66,11 @@ const RegisterPage = ({ event }) => {
 			});
 			
 			const data = await response.json();
+			console.log("Payment initiation response:", data);
 			
 			setLoading(false);
 			
+			// Follow the exact pattern from Paynow documentation
 			if (data.success) {
 				// Save the poll URL for checking payment status
 				setPollUrl(data.pollUrl);
@@ -113,12 +115,16 @@ const RegisterPage = ({ event }) => {
 			});
 			
 			const data = await response.json();
+			console.log("Mobile payment initiation response:", data);
 			
 			setLoading(false);
 			
+			// Follow the exact pattern from Paynow documentation
 			if (data.success) {
-				// Save the poll URL and instructions
+				// Save the poll URL and display instructions
 				setPollUrl(data.pollUrl);
+				
+				// Show instructions to the user
 				alert(data.instructions);
 				
 				// Start polling for payment status

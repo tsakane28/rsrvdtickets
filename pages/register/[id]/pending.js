@@ -55,35 +55,44 @@ const PendingPage = ({ event }) => {
         } else if (data.status === "pending" && data.pollUrl) {
           console.log("Payment status: PENDING with poll URL");
           // We have a poll URL, so check payment status using our server API
-          const pollResponse = await fetch('/api/paynow/poll-status', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ pollUrl: data.pollUrl }),
-          });
-          
-          const paymentStatus = await pollResponse.json();
-          console.log("Poll response:", paymentStatus);
-          
-          if (paymentStatus.pollSuccess === false) {
-            // Increment error count for poll failures
+          try {
+            const pollResponse = await fetch('/api/paynow/poll-status', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ pollUrl: data.pollUrl }),
+            });
+            
+            const pollData = await pollResponse.json();
+            console.log("Poll response:", pollData);
+            
+            // Handle polling errors
+            if (pollData.error) {
+              console.log("Poll error:", pollData.error);
+              setPollErrors(prev => prev + 1);
+              
+              if (pollErrors >= 2) {
+                // After 3 poll failures, offer manual verification
+                setManualVerification(true);
+              }
+            } 
+            // Check if paid using the paid property as returned from our API
+            else if (pollData.paid === true) {
+              console.log("Poll result: PAID");
+              setStatus("paid");
+              // Redirect to success page after 2 seconds
+              setTimeout(() => {
+                router.push(`/register/${router.query.id}/success`);
+              }, 2000);
+            }
+          } catch (pollError) {
+            console.error("Error during polling:", pollError);
             setPollErrors(prev => prev + 1);
-            console.log("Poll error count:", pollErrors + 1);
             
             if (pollErrors >= 2) {
-              // After 3 poll failures, offer manual verification
               setManualVerification(true);
             }
-          }
-          
-          if (paymentStatus.paid) {
-            console.log("Poll result: PAID");
-            setStatus("paid");
-            // Redirect to success page after 2 seconds
-            setTimeout(() => {
-              router.push(`/register/${router.query.id}/success`);
-            }, 2000);
           }
         }
         
