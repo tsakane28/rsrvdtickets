@@ -24,6 +24,10 @@ export async function getServerSideProps(context) {
 const PendingPage = ({ event }) => {
   const [status, setStatus] = useState("pending");
   const [loading, setLoading] = useState(true);
+  const [pollErrors, setPollErrors] = useState(0);
+  const [manualVerification, setManualVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const router = useRouter();
   const { name, email } = router.query;
   
@@ -33,17 +37,23 @@ const PendingPage = ({ event }) => {
     
     const checkPaymentStatus = async () => {
       try {
+        console.log("Checking payment status for event:", router.query.id, "email:", email);
+        
         // Try to get the payment reference from our database using event_id and email
         const response = await fetch(`/api/check-payment-status?event_id=${router.query.id}&email=${encodeURIComponent(email)}`);
         const data = await response.json();
         
+        console.log("Payment status response:", data);
+        
         if (data.status === "paid") {
+          console.log("Payment status: PAID");
           setStatus("paid");
           // Redirect to success page after 2 seconds
           setTimeout(() => {
             router.push(`/register/${router.query.id}/success`);
           }, 2000);
         } else if (data.status === "pending" && data.pollUrl) {
+          console.log("Payment status: PENDING with poll URL");
           // We have a poll URL, so check payment status using our server API
           const pollResponse = await fetch('/api/paynow/poll-status', {
             method: 'POST',
@@ -54,8 +64,21 @@ const PendingPage = ({ event }) => {
           });
           
           const paymentStatus = await pollResponse.json();
+          console.log("Poll response:", paymentStatus);
+          
+          if (paymentStatus.pollSuccess === false) {
+            // Increment error count for poll failures
+            setPollErrors(prev => prev + 1);
+            console.log("Poll error count:", pollErrors + 1);
+            
+            if (pollErrors >= 2) {
+              // After 3 poll failures, offer manual verification
+              setManualVerification(true);
+            }
+          }
           
           if (paymentStatus.paid) {
+            console.log("Poll result: PAID");
             setStatus("paid");
             // Redirect to success page after 2 seconds
             setTimeout(() => {
@@ -67,6 +90,14 @@ const PendingPage = ({ event }) => {
         setLoading(false);
       } catch (error) {
         console.error("Error checking payment status:", error);
+        setPollErrors(prev => prev + 1);
+        setErrorMessage(error.message || "Error checking payment status");
+        
+        if (pollErrors >= 2) {
+          // After 3 failures, offer manual verification
+          setManualVerification(true);
+        }
+        
         setStatus("error");
         setLoading(false);
       }
@@ -80,7 +111,51 @@ const PendingPage = ({ event }) => {
     
     // Clean up on unmount
     return () => clearInterval(interval);
-  }, [router.isReady, router.query.id, email, router]);
+  }, [router.isReady, router.query.id, email, router, pollErrors]);
+  
+  const handleManualVerification = async (e) => {
+    e.preventDefault();
+    
+    if (!verificationCode.trim()) {
+      setErrorMessage("Please enter your payment reference code");
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // Call a new endpoint to verify the payment using the reference code
+      const response = await fetch('/api/paynow/manual-verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          reference: verificationCode.trim(),
+          eventId: router.query.id,
+          email,
+          name
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setStatus("paid");
+        // Redirect to success page after 2 seconds
+        setTimeout(() => {
+          router.push(`/register/${router.query.id}/success`);
+        }, 2000);
+      } else {
+        setErrorMessage(result.error || "Could not verify payment");
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error("Manual verification error:", error);
+      setErrorMessage(error.message || "Error verifying payment");
+      setLoading(false);
+    }
+  };
   
   if (loading) {
     return <Loading title="Checking payment status..." />;
@@ -105,7 +180,7 @@ const PendingPage = ({ event }) => {
         <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
           <h1 className="text-2xl font-bold mb-4 text-center">{event.title}</h1>
           
-          {status === "pending" && (
+          {status === "pending" && !manualVerification && (
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FFD95A] mx-auto mb-4"></div>
               <h2 className="text-xl font-medium mb-4">Payment Processing</h2>
@@ -115,6 +190,33 @@ const PendingPage = ({ event }) => {
               <p className="text-sm text-gray-600 mb-6">
                 This page will automatically update when your payment is confirmed.
               </p>
+            </div>
+          )}
+          
+          {manualVerification && (
+            <div className="text-center">
+              <h2 className="text-xl font-medium mb-4">Verify Your Payment</h2>
+              <p className="mb-4">
+                We're having trouble automatically confirming your payment. Please enter the payment reference number from Paynow.
+              </p>
+              {errorMessage && (
+                <p className="text-red-500 mb-4">{errorMessage}</p>
+              )}
+              <form onSubmit={handleManualVerification} className="mt-4">
+                <input
+                  type="text"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  placeholder="Paynow reference number"
+                  className="w-full px-4 py-2 border rounded-md mb-4"
+                />
+                <button
+                  type="submit"
+                  className="w-full bg-[#FFD95A] py-2 rounded-md font-medium"
+                >
+                  Verify Payment
+                </button>
+              </form>
             </div>
           )}
           
@@ -131,7 +233,7 @@ const PendingPage = ({ event }) => {
             </div>
           )}
           
-          {status === "error" && (
+          {status === "error" && !manualVerification && (
             <div className="text-center">
               <div className="text-red-500 text-5xl mb-4">✗</div>
               <h2 className="text-xl font-medium mb-4">Payment Error</h2>
@@ -139,7 +241,7 @@ const PendingPage = ({ event }) => {
                 We encountered an error checking your payment status.
               </p>
               <p className="text-sm text-gray-600 mb-6">
-                Please try again or contact support if the problem persists.
+                {errorMessage || "Please try again or contact support if the problem persists."}
               </p>
               <div className="flex justify-center space-x-4">
                 <button
