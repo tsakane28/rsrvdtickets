@@ -89,7 +89,7 @@ const RegisterPage = ({ event }) => {
 				window.open(data.redirectUrl, "_blank");
 				
 				// Start polling for payment status
-				startPolling(data.pollUrl);
+				startPolling(data.pollUrl, data.paymentId);
 			} else {
 				setPaynowError("Failed to initiate payment: " + (data.error || "Unknown error"));
 			}
@@ -148,7 +148,7 @@ const RegisterPage = ({ event }) => {
 				alert(data.instructions);
 				
 				// Start polling for payment status
-				startPolling(data.pollUrl);
+				startPolling(data.pollUrl, data.paymentId);
 			} else {
 				setPaynowError("Failed to initiate mobile payment: " + (data.error || "Unknown error"));
 			}
@@ -159,7 +159,7 @@ const RegisterPage = ({ event }) => {
 		}
 	};
 	
-	const startPolling = async (url) => {
+	const startPolling = async (url, paymentId) => {
 		if (!url) return;
 		
 		// Set up interval to check payment status using the server API
@@ -170,7 +170,10 @@ const RegisterPage = ({ event }) => {
 					headers: {
 						'Content-Type': 'application/json',
 					},
-					body: JSON.stringify({ pollUrl: url }),
+					body: JSON.stringify({ 
+						pollUrl: url,
+						paymentId: paymentId 
+					}),
 				});
 				
 				const status = await response.json();

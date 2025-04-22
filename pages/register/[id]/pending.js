@@ -75,7 +75,7 @@ const PendingPage = ({ event }) => {
           // If there's a poll URL, try polling as a fallback
           if (data.status === "pending" && data.pollUrl) {
             console.log("Payment status: PENDING via stored payment ID, will try polling");
-            await tryPollingPaymentStatus(data.pollUrl);
+            await tryPollingPaymentStatus(data.pollUrl, storedPaymentId);
           }
         } else {
           // Fallback to checking by event_id and email
@@ -98,7 +98,9 @@ const PendingPage = ({ event }) => {
           // If there's a poll URL, try polling as a fallback
           if (data.status === "pending" && data.pollUrl) {
             console.log("Payment status: PENDING via event/email check, will try polling");
-            await tryPollingPaymentStatus(data.pollUrl);
+            // Get payment ID from the response data if available
+            const paymentId = data.paymentData?.paymentId;
+            await tryPollingPaymentStatus(data.pollUrl, paymentId);
           }
         }
         
@@ -119,14 +121,21 @@ const PendingPage = ({ event }) => {
     };
     
     // Helper function to try polling a payment status
-    const tryPollingPaymentStatus = async (pollUrl) => {
+    const tryPollingPaymentStatus = async (pollUrl, paymentId = null) => {
       try {
+        const requestBody = { pollUrl };
+        
+        // Add paymentId to request if available
+        if (paymentId) {
+          requestBody.paymentId = paymentId;
+        }
+        
         const pollResponse = await fetch('/api/paynow/poll-status', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ pollUrl }),
+          body: JSON.stringify(requestBody),
         });
         
         const pollData = await pollResponse.json();
