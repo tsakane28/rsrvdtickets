@@ -10,7 +10,6 @@ import { useRouter } from "next/router";
 import RegClosed from "../../../components/RegClosed";
 import ErrorPage from "../../../components/ErrorPage";
 import Loading from "../../../components/Loading";
-import { Paynow } from "paynow";
 
 export async function getServerSideProps(context) {
 	const docRef = doc(db, "events", context.query.id);
@@ -49,38 +48,39 @@ const RegisterPage = ({ event }) => {
 		try {
 			setLoading(true);
 			
-			// Create Paynow instance with provided integration details
-			const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
-			
-			// Set return and result URLs
-			const baseUrl = window.location.origin;
-			paynow.resultUrl = `${baseUrl}/api/paynow/update`;
-			paynow.returnUrl = `${baseUrl}/api/paynow/return?event_id=${query.id}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
-			
-			// Create payment with event name as reference
-			const payment = paynow.createPayment(`Ticket-${query.id}`);
-			
-			// Add ticket as item (using event title and price)
+			// Use the server-side API endpoint instead of direct Paynow SDK call
 			const ticketPrice = event.price || 10; // Default to 10 if price not specified
-			payment.add(`Ticket for ${event.title}`, ticketPrice);
 			
-			// Send payment to Paynow
-			const response = await paynow.send(payment);
+			const response = await fetch('/api/paynow/initiate', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					eventId: query.id,
+					eventTitle: event.title,
+					amount: ticketPrice,
+					email,
+					name
+				}),
+			});
+			
+			const data = await response.json();
 			
 			setLoading(false);
 			
-			if (response.success) {
+			if (data.success) {
 				// Save the poll URL for checking payment status
-				setPollUrl(response.pollUrl);
-				setRedirectUrl(response.redirectUrl);
+				setPollUrl(data.pollUrl);
+				setRedirectUrl(data.redirectUrl);
 				
 				// Open Paynow in new window
-				window.open(response.redirectUrl, "_blank");
+				window.open(data.redirectUrl, "_blank");
 				
 				// Start polling for payment status
-				startPolling(response.pollUrl);
+				startPolling(data.pollUrl);
 			} else {
-				setPaynowError("Failed to initiate payment: " + response.error);
+				setPaynowError("Failed to initiate payment: " + (data.error || "Unknown error"));
 			}
 		} catch (error) {
 			setLoading(false);
@@ -93,35 +93,38 @@ const RegisterPage = ({ event }) => {
 		try {
 			setLoading(true);
 			
-			// Create Paynow instance
-			const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
-			
-			// Set return and result URLs
-			const baseUrl = window.location.origin;
-			paynow.resultUrl = `${baseUrl}/api/paynow/update`;
-			paynow.returnUrl = `${baseUrl}/api/paynow/return?event_id=${query.id}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
-			
-			// Create payment with event name as reference
-			const payment = paynow.createPayment(`Ticket-${query.id}`, email);
-			
-			// Add ticket as item
+			// Use the server-side API endpoint instead of direct Paynow SDK call
 			const ticketPrice = event.price || 10; // Default to 10 if price not specified
-			payment.add(`Ticket for ${event.title}`, ticketPrice);
 			
-			// Send mobile payment to Paynow
-			const response = await paynow.sendMobile(payment, phoneNumber, method);
+			const response = await fetch('/api/paynow/initiate-mobile', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					eventId: query.id,
+					eventTitle: event.title,
+					amount: ticketPrice,
+					email,
+					name,
+					phoneNumber,
+					method
+				}),
+			});
+			
+			const data = await response.json();
 			
 			setLoading(false);
 			
-			if (response.success) {
+			if (data.success) {
 				// Save the poll URL and instructions
-				setPollUrl(response.pollUrl);
-				alert(response.instructions);
+				setPollUrl(data.pollUrl);
+				alert(data.instructions);
 				
 				// Start polling for payment status
-				startPolling(response.pollUrl);
+				startPolling(data.pollUrl);
 			} else {
-				setPaynowError("Failed to initiate mobile payment: " + response.error);
+				setPaynowError("Failed to initiate mobile payment: " + (data.error || "Unknown error"));
 			}
 		} catch (error) {
 			setLoading(false);
@@ -131,32 +134,34 @@ const RegisterPage = ({ event }) => {
 	};
 	
 	const startPolling = async (url) => {
-		try {
-			// Create Paynow instance
-			const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
-			
-			// Set up interval to check payment status
-			const pollInterval = setInterval(async () => {
-				try {
-					const status = await paynow.pollTransaction(url);
-					
-					if (status.paid()) {
-						clearInterval(pollInterval);
-						handlePaymentSuccess(status);
-					}
-				} catch (error) {
-					console.error("Error polling transaction:", error);
+		if (!url) return;
+		
+		// Set up interval to check payment status using the server API
+		const pollInterval = setInterval(async () => {
+			try {
+				const response = await fetch('/api/paynow/poll-status', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ pollUrl: url }),
+				});
+				
+				const status = await response.json();
+				
+				if (status.paid) {
+					clearInterval(pollInterval);
+					handlePaymentSuccess(status);
 				}
-			}, 5000); // Check every 5 seconds
-			
-			// Clear interval after 10 minutes (timeout)
-			setTimeout(() => {
-				clearInterval(pollInterval);
-			}, 10 * 60 * 1000);
-			
-		} catch (error) {
-			console.error("Error setting up polling:", error);
-		}
+			} catch (error) {
+				console.error("Error polling transaction:", error);
+			}
+		}, 5000); // Check every 5 seconds
+		
+		// Clear interval after 10 minutes (timeout)
+		setTimeout(() => {
+			clearInterval(pollInterval);
+		}, 10 * 60 * 1000);
 	};
 	
 	const handlePaymentSuccess = async (paymentStatus) => {

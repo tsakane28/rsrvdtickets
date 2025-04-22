@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { doc, getDoc } from "@firebase/firestore";
 import { db } from "../../../utils/firebase";
-import { Paynow } from "paynow";
 import Loading from "../../../components/Loading";
 import ErrorPage from "../../../components/ErrorPage";
 
@@ -34,9 +33,6 @@ const PendingPage = ({ event }) => {
     
     const checkPaymentStatus = async () => {
       try {
-        // Create Paynow instance
-        const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
-        
         // Try to get the payment reference from our database using event_id and email
         const response = await fetch(`/api/check-payment-status?event_id=${router.query.id}&email=${encodeURIComponent(email)}`);
         const data = await response.json();
@@ -48,10 +44,18 @@ const PendingPage = ({ event }) => {
             router.push(`/register/${router.query.id}/success`);
           }, 2000);
         } else if (data.status === "pending" && data.pollUrl) {
-          // We have a poll URL, so check payment status directly with Paynow
-          const paymentStatus = await paynow.pollTransaction(data.pollUrl);
+          // We have a poll URL, so check payment status using our server API
+          const pollResponse = await fetch('/api/paynow/poll-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ pollUrl: data.pollUrl }),
+          });
           
-          if (paymentStatus.paid()) {
+          const paymentStatus = await pollResponse.json();
+          
+          if (paymentStatus.paid) {
             setStatus("paid");
             // Redirect to success page after 2 seconds
             setTimeout(() => {
