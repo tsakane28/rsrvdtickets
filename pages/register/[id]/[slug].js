@@ -72,9 +72,18 @@ const RegisterPage = ({ event }) => {
 			
 			// Follow the exact pattern from Paynow documentation
 			if (data.success) {
-				// Save the poll URL for checking payment status
+				// Save the poll URL and payment tracking details
 				setPollUrl(data.pollUrl);
 				setRedirectUrl(data.redirectUrl);
+				
+				// Store payment ID in localStorage for tracking
+				if (data.paymentId) {
+					localStorage.setItem('paymentId', data.paymentId);
+					localStorage.setItem('paymentTime', new Date().toISOString());
+					localStorage.setItem('eventId', query.id);
+					localStorage.setItem('userEmail', email);
+					localStorage.setItem('userName', name);
+				}
 				
 				// Open Paynow in new window
 				window.open(data.redirectUrl, "_blank");
@@ -123,6 +132,17 @@ const RegisterPage = ({ event }) => {
 			if (data.success) {
 				// Save the poll URL and display instructions
 				setPollUrl(data.pollUrl);
+				
+				// Store payment ID in localStorage for tracking
+				if (data.paymentId) {
+					localStorage.setItem('paymentId', data.paymentId);
+					localStorage.setItem('paymentTime', new Date().toISOString());
+					localStorage.setItem('eventId', query.id);
+					localStorage.setItem('userEmail', email);
+					localStorage.setItem('userName', name);
+					localStorage.setItem('paymentMethod', method);
+					localStorage.setItem('phoneNumber', phoneNumber);
+				}
 				
 				// Show instructions to the user
 				alert(data.instructions);

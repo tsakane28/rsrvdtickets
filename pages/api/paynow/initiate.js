@@ -1,4 +1,6 @@
 import { Paynow } from "paynow";
+import { db } from "../../../utils/firebase";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -33,7 +35,32 @@ export default async function handler(req, res) {
     // Log the complete response for debugging
     console.log("Paynow response:", JSON.stringify(response));
     
-    // Directly pass through the Paynow response structure, which includes success, error, redirectUrl, pollUrl
+    if (response.success) {
+      // Generate a unique ID for this payment
+      const paymentId = `paynow-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+      
+      // Save payment information to the database
+      const paymentRef = doc(db, "payments", paymentId);
+      await setDoc(paymentRef, {
+        eventId,
+        eventTitle,
+        email,
+        name,
+        amount: parseFloat(amount),
+        reference: `Ticket-${eventId}`,
+        pollUrl: response.pollUrl,
+        redirectUrl: response.redirectUrl,
+        status: "pending",
+        initiated: serverTimestamp(),
+        method: "paynow-web",
+        paymentId
+      });
+      
+      // Add payment ID to the response
+      response.paymentId = paymentId;
+    }
+    
+    // Directly pass through the Paynow response structure
     return res.status(200).json(response);
   } catch (error) {
     console.error("Paynow API error:", error);

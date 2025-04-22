@@ -37,62 +37,68 @@ const PendingPage = ({ event }) => {
     
     const checkPaymentStatus = async () => {
       try {
-        console.log("Checking payment status for event:", router.query.id, "email:", email);
+        // Try to get the payment ID from localStorage first
+        const storedPaymentId = localStorage.getItem('paymentId');
+        const storedEventId = localStorage.getItem('eventId');
+        const storedEmail = localStorage.getItem('userEmail');
+        const storedName = localStorage.getItem('userName');
         
-        // Try to get the payment reference from our database using event_id and email
-        const response = await fetch(`/api/check-payment-status?event_id=${router.query.id}&email=${encodeURIComponent(email)}`);
-        const data = await response.json();
+        console.log("Checking payment status with stored details:", {
+          paymentId: storedPaymentId,
+          eventId: router.query.id,
+          email
+        });
         
-        console.log("Payment status response:", data);
-        
-        if (data.status === "paid") {
-          console.log("Payment status: PAID");
-          setStatus("paid");
-          // Redirect to success page after 2 seconds
-          setTimeout(() => {
-            router.push(`/register/${router.query.id}/success`);
-          }, 2000);
-        } else if (data.status === "pending" && data.pollUrl) {
-          console.log("Payment status: PENDING with poll URL");
-          // We have a poll URL, so check payment status using our server API
-          try {
-            const pollResponse = await fetch('/api/paynow/poll-status', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ pollUrl: data.pollUrl }),
-            });
-            
-            const pollData = await pollResponse.json();
-            console.log("Poll response:", pollData);
-            
-            // Handle polling errors
-            if (pollData.error) {
-              console.log("Poll error:", pollData.error);
-              setPollErrors(prev => prev + 1);
-              
-              if (pollErrors >= 2) {
-                // After 3 poll failures, offer manual verification
-                setManualVerification(true);
-              }
-            } 
-            // Check if paid using the paid property as returned from our API
-            else if (pollData.paid === true) {
-              console.log("Poll result: PAID");
-              setStatus("paid");
-              // Redirect to success page after 2 seconds
-              setTimeout(() => {
-                router.push(`/register/${router.query.id}/success`);
-              }, 2000);
-            }
-          } catch (pollError) {
-            console.error("Error during polling:", pollError);
-            setPollErrors(prev => prev + 1);
-            
-            if (pollErrors >= 2) {
-              setManualVerification(true);
-            }
+        // If we have a stored payment ID and it matches this event, use it
+        if (storedPaymentId && storedEventId === router.query.id) {
+          console.log("Using stored payment ID:", storedPaymentId);
+          
+          // Check status using the specific payment ID
+          const response = await fetch(`/api/check-payment-status?paymentId=${storedPaymentId}`);
+          const data = await response.json();
+          
+          console.log("Payment status response:", data);
+          
+          if (data.status === "paid") {
+            console.log("Payment status: PAID via stored payment ID");
+            setStatus("paid");
+            // Redirect to success page after 2 seconds
+            setTimeout(() => {
+              router.push(`/register/${router.query.id}/success`);
+              // Clear payment info from localStorage after successful verification
+              localStorage.removeItem('paymentId');
+              localStorage.removeItem('paymentTime');
+            }, 2000);
+            return; // Exit early since we're done
+          }
+          
+          // If there's a poll URL, try polling as a fallback
+          if (data.status === "pending" && data.pollUrl) {
+            console.log("Payment status: PENDING via stored payment ID, will try polling");
+            await tryPollingPaymentStatus(data.pollUrl);
+          }
+        } else {
+          // Fallback to checking by event_id and email
+          console.log("No stored payment ID found or different event, checking by event/email");
+          const response = await fetch(`/api/check-payment-status?event_id=${router.query.id}&email=${encodeURIComponent(email)}`);
+          const data = await response.json();
+          
+          console.log("Payment status response:", data);
+          
+          if (data.status === "paid") {
+            console.log("Payment status: PAID via event/email check");
+            setStatus("paid");
+            // Redirect to success page after 2 seconds
+            setTimeout(() => {
+              router.push(`/register/${router.query.id}/success`);
+            }, 2000);
+            return; // Exit early since we're done
+          }
+          
+          // If there's a poll URL, try polling as a fallback
+          if (data.status === "pending" && data.pollUrl) {
+            console.log("Payment status: PENDING via event/email check, will try polling");
+            await tryPollingPaymentStatus(data.pollUrl);
           }
         }
         
@@ -109,6 +115,52 @@ const PendingPage = ({ event }) => {
         
         setStatus("error");
         setLoading(false);
+      }
+    };
+    
+    // Helper function to try polling a payment status
+    const tryPollingPaymentStatus = async (pollUrl) => {
+      try {
+        const pollResponse = await fetch('/api/paynow/poll-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ pollUrl }),
+        });
+        
+        const pollData = await pollResponse.json();
+        console.log("Poll response:", pollData);
+        
+        // Handle polling errors
+        if (pollData.error) {
+          console.log("Poll error:", pollData.error);
+          setPollErrors(prev => prev + 1);
+          
+          if (pollErrors >= 2) {
+            // After 3 poll failures, offer manual verification
+            setManualVerification(true);
+          }
+        } 
+        // Check if paid using the paid property as returned from our API
+        else if (pollData.paid === true) {
+          console.log("Poll result: PAID");
+          setStatus("paid");
+          // Redirect to success page after 2 seconds
+          setTimeout(() => {
+            router.push(`/register/${router.query.id}/success`);
+            // Clear payment info from localStorage
+            localStorage.removeItem('paymentId');
+            localStorage.removeItem('paymentTime');
+          }, 2000);
+        }
+      } catch (pollError) {
+        console.error("Error during polling:", pollError);
+        setPollErrors(prev => prev + 1);
+        
+        if (pollErrors >= 2) {
+          setManualVerification(true);
+        }
       }
     };
     
