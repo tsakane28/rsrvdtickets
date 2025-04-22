@@ -62,8 +62,7 @@ export default async function handler(req, res) {
 			time: formattedTime,
 			date,
 			title,
-			qrCodeData: qrCode,
-			flyerUrl: flier_url && flier_url !== "No flier for this event" ? flier_url : null
+			qrCodeData: qrCode
 		});
 
 		// Log the values used to build the URLs
