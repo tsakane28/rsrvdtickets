@@ -23,7 +23,7 @@ function getChromePath() {
 
 /**
  * Generates a PDF ticket with QR code and event details using Puppeteer
- * Creates a professional and modern design with HTML/CSS
+ * Uses a custom background image with modern design elements
  * 
  * @param {Object} options - Ticket options
  * @param {string} options.name - Attendee name
@@ -32,12 +32,17 @@ function getChromePath() {
  * @param {string} options.date - Event date
  * @param {string} options.title - Event title
  * @param {string} options.qrCodeData - Base64 QR code data
+ * @param {string} options.backgroundImage - Optional custom background image (base64)
  * @returns {Promise<Buffer>} - PDF data as buffer
  */
 exports.generateTicketPdf = async (options) => {
-  const { name, passcode, time, date, title, qrCodeData } = options;
+  const { name, passcode, time, date, title, qrCodeData, backgroundImage } = options;
   
-  // Create a modern HTML template with clean design
+  // Default background image if not provided (base64 string of concert image)
+  const defaultBackgroundImage = 'BACKGROUND_IMAGE_BASE64_PLACEHOLDER'; // This would be replaced with actual base64
+  const ticketBackground = backgroundImage || defaultBackgroundImage;
+  
+  // Create a modern HTML template with custom background image
   const htmlTemplate = `
     <!DOCTYPE html>
     <html lang="en">
@@ -80,8 +85,19 @@ exports.generateTicketPdf = async (options) => {
           overflow: hidden;
           border-radius: 12px;
           box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-          background-image: linear-gradient(to right, #0f0c29, #302b63, #24243e);
           color: white;
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+        }
+        
+        .ticket-background {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: 1;
         }
         
         .content-area {
@@ -89,6 +105,10 @@ exports.generateTicketPdf = async (options) => {
           padding: 20px 25px;
           display: flex;
           flex-direction: column;
+          position: relative;
+          z-index: 2;
+          /* Add semi-transparent overlay to ensure text readability */
+          background: linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 70%, transparent 100%);
         }
         
         .header {
@@ -100,6 +120,7 @@ exports.generateTicketPdf = async (options) => {
           font-weight: 700;
           margin-bottom: 4px;
           color: #ffffff;
+          text-shadow: 0 1px 3px rgba(0,0,0,0.6);
         }
         
         .event-details {
@@ -117,6 +138,7 @@ exports.generateTicketPdf = async (options) => {
           color: #add6ff;
           font-size: 14px;
           margin-bottom: 12px;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
         
         .label {
@@ -126,11 +148,13 @@ exports.generateTicketPdf = async (options) => {
           font-weight: 600;
           letter-spacing: 0.5px;
           margin-bottom: 3px;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
         
         .value {
           font-size: 14px;
           color: white;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
         
         .ticket-number {
@@ -144,13 +168,12 @@ exports.generateTicketPdf = async (options) => {
         
         .qr-section {
           width: 160px;
-          background-color: #f7b733;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           position: relative;
-          border-radius: 0 12px 12px 0;
+          z-index: 2;
         }
         
         .qr-code-container {
@@ -166,42 +189,27 @@ exports.generateTicketPdf = async (options) => {
           display: block;
         }
         
+        /* The verified badge is already in the background image */
         .verified-badge {
-          font-size: 10px;
-          font-weight: 600;
-          text-transform: uppercase;
-          color: #0f0c29;
-          background-color: white;
-          padding: 3px 10px;
-          border-radius: 12px;
-          letter-spacing: 0.5px;
+          display: none;
         }
         
         .divider {
-          position: absolute;
-          left: 0;
-          top: 30px;
-          bottom: 30px;
-          width: 2px;
-          background-image: repeating-linear-gradient(
-            to bottom,
-            white,
-            white 4px,
-            transparent 4px,
-            transparent 8px
-          );
+          display: none; /* No need for divider as it's part of the background */
         }
         
         .footer {
           margin-top: auto;
           font-size: 10px;
           color: rgba(255, 255, 255, 0.6);
+          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
       </style>
     </head>
     <body>
       <div class="ticket-container">
         <div class="ticket">
+          <img class="ticket-background" src="${ticketBackground}" alt="Ticket Background" />
           <div class="content-area">
             <div class="header">
               <div class="event-title">${title}</div>
@@ -226,11 +234,9 @@ exports.generateTicketPdf = async (options) => {
           </div>
           
           <div class="qr-section">
-            <div class="divider"></div>
             <div class="qr-code-container">
               <img class="qr-code" src="${qrCodeData}" alt="QR Code" />
             </div>
-            <div class="verified-badge">Verified</div>
           </div>
         </div>
       </div>
@@ -300,15 +306,31 @@ exports.generateTicketPdf = async (options) => {
           resolve(pdfData);
         });
         
-        // Modern design with gradient-like effect
-        // Main background - medium blue
-        doc.rect(0, 0, 600, 220).fill('#302b63');
+        // Try to use background image if available
+        try {
+          // If we have the background image, use it instead of drawing shapes
+          if (ticketBackground) {
+            const bgImage = ticketBackground.replace(/^data:image\/(png|jpg|jpeg);base64,/, '');
+            doc.image(Buffer.from(bgImage, 'base64'), 0, 0, {
+              width: 600,
+              height: 220
+            });
+          } else {
+            // Fallback to original gradient design if no background image
+            doc.rect(0, 0, 600, 220).fill('#302b63');
+            doc.rect(0, 0, 230, 220).fill('#0f0c29');
+            doc.roundedRect(440, 0, 160, 220, 10, 0, 10, 0).fill('#f7b733');
+          }
+        } catch (err) {
+          console.error('Error adding background image:', err);
+          // Fallback to original design
+          doc.rect(0, 0, 600, 220).fill('#302b63');
+          doc.rect(0, 0, 230, 220).fill('#0f0c29');
+          doc.roundedRect(440, 0, 160, 220, 10, 0, 10, 0).fill('#f7b733');
+        }
         
-        // Left side - darker blue
-        doc.rect(0, 0, 230, 220).fill('#0f0c29');
-        
-        // Right section - orange
-        doc.roundedRect(440, 0, 160, 220, 10, 0, 10, 0).fill('#f7b733');
+        // Add semi-transparent overlay for text readability
+        doc.rect(0, 0, 440, 220).fill('rgba(0, 0, 0, 0.4)');
         
         // Add event title
         doc.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff');
@@ -333,13 +355,6 @@ exports.generateTicketPdf = async (options) => {
         doc.font('Helvetica').fontSize(14).fillColor('#ffffff');
         doc.text(passcode, 45, 168);
         
-        // Add divider
-        doc.save();
-        doc.strokeColor('white').opacity(0.5).lineWidth(2);
-        doc.dash(6, 3);
-        doc.moveTo(440, 30).lineTo(440, 190).stroke();
-        doc.restore();
-        
         // Add QR code section
         doc.roundedRect(460, 50, 120, 120, 8).fill('#ffffff');
         
@@ -359,11 +374,6 @@ exports.generateTicketPdf = async (options) => {
             });
           }
         }
-        
-        // Add verified badge
-        doc.roundedRect(480, 180, 80, 20, 10).fill('#ffffff');
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('#0f0c29');
-        doc.text('VERIFIED', 490, 186);
         
         // Add footer
         doc.font('Helvetica').fontSize(8).fillColor('rgba(255, 255, 255, 0.6)');
