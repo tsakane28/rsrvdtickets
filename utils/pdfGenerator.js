@@ -50,7 +50,7 @@ exports.generateTicketPdf = async (options) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${title} - Ticket</title>
   <style>
-    /* Modern, clean font stack */
+      /* Modern, clean font stack */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
     * {
@@ -83,7 +83,6 @@ exports.generateTicketPdf = async (options) => {
       display: flex;
       overflow: hidden;
       border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
       color: white;
       background-size: cover;
       background-position: center;
@@ -107,7 +106,7 @@ exports.generateTicketPdf = async (options) => {
       position: relative;
       z-index: 2;
       /* Add semi-transparent overlay to ensure text readability */
-    }
+       }
     
     .header {
       margin-bottom: 16px;
@@ -118,7 +117,6 @@ exports.generateTicketPdf = async (options) => {
       font-weight: 700;
       margin-bottom: 4px;
       color: #ffffff;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.6);
     }
     
     .event-details {
@@ -136,17 +134,15 @@ exports.generateTicketPdf = async (options) => {
       color: #add6ff;
       font-size: 14px;
       margin-bottom: 12px;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
     
     .label {
       font-size: 11px;
       text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.7);
+      color: rgb(48, 192, 23);
       font-weight: 600;
       letter-spacing: 0.5px;
       margin-bottom: 3px;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
     
     .value {
@@ -160,7 +156,7 @@ exports.generateTicketPdf = async (options) => {
       margin-top: 5px;
       margin-left: 3px;
       padding: 6px 12px;
-      background-color: rgba(255, 255, 255, 0.15);
+      background-color: rgb(255, 0, 0);
       border-radius: 20px;
       font-size: 14px;
       font-weight: 500;
@@ -202,7 +198,6 @@ exports.generateTicketPdf = async (options) => {
       margin-top: auto;
       font-size: 10px;
       color: rgba(255, 255, 255, 0.6);
-      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
   </style>
 </head>
