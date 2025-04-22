@@ -14,6 +14,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
+    console.log(`Initiating mobile payment for phone: ${phoneNumber}, method: ${method}`);
+    
     // Create Paynow instance with provided integration details
     const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
     
@@ -31,8 +33,35 @@ export default async function handler(req, res) {
     
     console.log(`Setting mobile return URL: ${paynow.returnUrl}`);
     
-    // Create payment with event name as reference and email
-    const payment = paynow.createPayment(merchantReference, email);
+    // Important: For test mode, include the merchant email as authemail
+    // This allows test transactions to be completed as per Paynow docs
+    const merchantEmail = process.env.MERCHANT_EMAIL || "wesleytsakane116@gmail.com"; // Replace with your merchant email
+    
+    // Check if this is a test mode phone number
+    let isTestNumber = false;
+    let expectedBehavior = "";
+    
+    if (phoneNumber === "0771111111") {
+      isTestNumber = true;
+      expectedBehavior = "SUCCESS - immediate approval (5 seconds)";
+    } else if (phoneNumber === "0772222222") {
+      isTestNumber = true;
+      expectedBehavior = "DELAYED SUCCESS - approval after 30 seconds";
+    } else if (phoneNumber === "0773333333") {
+      isTestNumber = true;
+      expectedBehavior = "FAILED - user cancelled after 30 seconds";
+    } else if (phoneNumber === "0774444444") {
+      isTestNumber = true;
+      expectedBehavior = "FAILED - immediate insufficient balance error";
+    }
+    
+    if (isTestNumber) {
+      console.log(`TEST MODE: Using test phone number ${phoneNumber}. Expected behavior: ${expectedBehavior}`);
+    }
+    
+    // Create payment with merchant reference and merchant email (for test mode)
+    // The second parameter is the authemail field required for test mode
+    const payment = paynow.createPayment(merchantReference, merchantEmail);
     
     // Add ticket as item
     payment.add(`Ticket for ${eventTitle}`, parseFloat(amount));
@@ -65,12 +94,21 @@ export default async function handler(req, res) {
         initiated: serverTimestamp(),
         method: "paynow-mobile",
         paymentId,
-        returnUrl: paynow.returnUrl
+        returnUrl: paynow.returnUrl,
+        merchantEmail: merchantEmail, // Store this for reference
+        isTestMode: isTestNumber, // Flag to indicate if this is a test phone number
+        testBehavior: isTestNumber ? expectedBehavior : null
       });
       
       // Add payment ID to the response
       response.paymentId = paymentId;
       response.merchantReference = merchantReference;
+      
+      // For test mode, add additional info to help with debugging
+      if (isTestNumber) {
+        response.isTestNumber = true;
+        response.testBehavior = expectedBehavior;
+      }
     }
     
     // Directly pass through the Paynow response structure

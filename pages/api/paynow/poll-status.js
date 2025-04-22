@@ -1,6 +1,6 @@
 import { Paynow } from "paynow";
 import { db } from "../../../utils/firebase";
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { registerAttendee } from "../../../utils/util";
 
 export default async function handler(req, res) {
@@ -9,14 +9,90 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { pollUrl, paymentId } = req.body;
+    const { pollUrl, paymentId, reference } = req.body;
     
-    if (!pollUrl) {
-      return res.status(400).json({ error: 'Missing poll URL' });
+    if (!pollUrl && !paymentId && !reference) {
+      return res.status(400).json({ error: 'Missing poll URL, paymentId, or reference' });
     }
 
-    console.log(`Polling Paynow transaction status from URL: ${pollUrl}`);
+    console.log(`Polling Paynow transaction status...`);
+    
+    // If we have a paymentId, get the payment details first
+    let paymentData = null;
+    let isTestMode = false;
+    
+    if (paymentId) {
+      try {
+        const paymentDoc = await getDoc(doc(db, "payments", paymentId));
+        if (paymentDoc.exists()) {
+          paymentData = paymentDoc.data();
+          isTestMode = paymentData.isTestMode === true;
+          
+          if (isTestMode) {
+            console.log(`This is a test mode payment with behavior: ${paymentData.testBehavior || "unknown"}`);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching payment data:", err);
+      }
+    }
+    
+    // If test mode and it's been more than 30 seconds, we can infer the result
+    if (isTestMode && paymentData) {
+      const initiatedTime = paymentData.initiated ? paymentData.initiated.toDate() : new Date(paymentData.initiated);
+      const timeElapsed = (new Date() - initiatedTime) / 1000; // seconds
+      
+      console.log(`Test payment initiated ${timeElapsed.toFixed(0)} seconds ago`);
+      
+      // For 0771111111 - Quick success (5 seconds)
+      if (paymentData.testBehavior && paymentData.testBehavior.includes("immediate approval") && timeElapsed > 5) {
+        console.log("Test mode: Immediate success condition met");
+        await handleTestModeSuccess(paymentData, paymentId);
+        return res.status(200).json({
+          paid: true,
+          status: "paid",
+          amount: paymentData.amount.toString(),
+          reference: paymentData.reference,
+          testMode: true
+        });
+      }
+      
+      // For 0772222222 - Delayed success (30 seconds)
+      if (paymentData.testBehavior && paymentData.testBehavior.includes("DELAYED SUCCESS") && timeElapsed > 30) {
+        console.log("Test mode: Delayed success condition met");
+        await handleTestModeSuccess(paymentData, paymentId);
+        return res.status(200).json({
+          paid: true,
+          status: "paid",
+          amount: paymentData.amount.toString(),
+          reference: paymentData.reference,
+          testMode: true
+        });
+      }
+      
+      // For 0773333333 - User cancelled (30 seconds)
+      if (paymentData.testBehavior && paymentData.testBehavior.includes("user cancelled") && timeElapsed > 30) {
+        console.log("Test mode: User cancelled condition met");
+        await updateDoc(doc(db, "payments", paymentId), {
+          status: "cancelled",
+          statusUpdatedAt: serverTimestamp(),
+          updatedByPolling: true,
+          testModeResult: "User cancelled"
+        });
+        
+        return res.status(200).json({
+          paid: false,
+          status: "cancelled",
+          amount: paymentData.amount.toString(),
+          reference: paymentData.reference,
+          testMode: true
+        });
+      }
+    }
 
+    // If we get here, proceed with normal polling
+    console.log(`Polling URL: ${pollUrl}`);
+    
     // Create Paynow instance
     const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
     
@@ -53,15 +129,8 @@ export default async function handler(req, res) {
           });
           console.log(`Successfully updated payment record: ${paymentId}`);
           
-          // Get payment details to register the attendee
-          const payments = query(
-            collection(db, "payments"),
-            where("paymentId", "==", paymentId)
-          );
-          
-          const paymentsSnapshot = await getDocs(payments);
-          if (!paymentsSnapshot.empty) {
-            const paymentData = paymentsSnapshot.docs[0].data();
+          // Register the attendee if not already done
+          if (paymentData) {
             const { name, email, eventId } = paymentData;
             
             if (name && email && eventId) {
@@ -150,5 +219,40 @@ export default async function handler(req, res) {
       error: error.message || 'An error occurred while polling the transaction',
       paid: false
     });
+  }
+}
+
+// Helper function to handle test mode success
+async function handleTestModeSuccess(paymentData, paymentId) {
+  try {
+    // Update payment record
+    await updateDoc(doc(db, "payments", paymentId), {
+      status: "paid",
+      statusUpdatedAt: serverTimestamp(),
+      updatedByPolling: true,
+      testModeResult: "Success"
+    });
+    
+    // Register the attendee
+    const { name, email, eventId } = paymentData;
+    
+    if (name && email && eventId) {
+      // Create payment info
+      const paymentInfo = {
+        paymentId: paymentId,
+        amount: paymentData.amount,
+        currency: 'ZWL',
+        timestamp: new Date().toISOString(),
+        status: 'COMPLETED',
+        paid: true,
+        provider: 'Paynow-TestMode'
+      };
+      
+      // Register the attendee
+      await registerAttendee(name, email, eventId, null, null, paymentInfo);
+      console.log("Successfully registered test mode attendee");
+    }
+  } catch (err) {
+    console.error("Error handling test mode success:", err);
   }
 } 

@@ -31,8 +31,13 @@ export default async function handler(req, res) {
     
     console.log(`Setting return URL: ${paynow.returnUrl}`);
     
-    // Create payment with event name as reference
-    const payment = paynow.createPayment(merchantReference);
+    // Important: For test mode, include the merchant email as authemail
+    // This allows test transactions to be completed as per Paynow docs
+    const merchantEmail = process.env.MERCHANT_EMAIL || "wesleytsakane116@gmail.com"; // Replace with your merchant email
+    
+    // Create payment with merchant reference and merchant email (for test mode)
+    // The second parameter is the authemail field required for test mode
+    const payment = paynow.createPayment(merchantReference, merchantEmail);
     
     // Add ticket as item
     payment.add(`Ticket for ${eventTitle}`, parseFloat(amount));
@@ -63,7 +68,9 @@ export default async function handler(req, res) {
         initiated: serverTimestamp(),
         method: "paynow-web",
         paymentId,
-        returnUrl: paynow.returnUrl
+        returnUrl: paynow.returnUrl,
+        merchantEmail: merchantEmail, // Store this for reference
+        isTestMode: true // Flag to indicate this is a test payment
       });
       
       // Add payment ID to the response
