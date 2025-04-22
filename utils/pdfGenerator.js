@@ -13,10 +13,11 @@ const path = require('path');
  * @param {string} options.date - Event date
  * @param {string} options.title - Event title
  * @param {string} options.qrCodeData - Base64 QR code data
+ * @param {string} options.flyerUrl - URL to event flyer image (optional)
  * @returns {Promise<Buffer>} - PDF data as buffer
  */
 exports.generateTicketPdf = async (options) => {
-  const { name, passcode, time, date, title, qrCodeData } = options;
+  const { name, passcode, time, date, title, qrCodeData, flyerUrl } = options;
   
   return new Promise((resolve, reject) => {
     try {
@@ -33,168 +34,132 @@ exports.generateTicketPdf = async (options) => {
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
           
+          * {
+            box-sizing: border-box;
+          }
+
           body, html {
             margin: 0;
             padding: 0;
-            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-          }
-          
-          .ticket-container {
-            width: 595px;
-            height: 400px;
-            position: relative;
-            background: white;
-            overflow: hidden;
-            box-sizing: border-box;
-            border: 1px solid #000;
-            display: flex;
-          }
-          
-          .ticket-left {
-            width: 235px;
-            height: 100%;
-            padding: 20px;
-            box-sizing: border-box;
-            border-right: 1px solid #000;
-          }
-          
-          .ticket-right {
-            flex: 1;
-            height: 100%;
-            position: relative;
-          }
-          
-          .ticket-header {
-            height: 130px;
-            padding: 20px;
-            border-bottom: 1px solid #000;
-            box-sizing: border-box;
-            text-align: center;
-          }
-          
-          .ticket-header h1 {
-            margin: 0;
-            padding: 0;
-            font-size: 24px;
-            font-weight: bold;
-          }
-          
-          .ticket-header h2 {
-            margin: 10px 0 0;
-            padding: 0;
-            font-size: 20px;
-          }
-          
-          .ticket-detail {
-            margin: 20px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          
-          .ticket-detail-label {
-            font-weight: bold;
-            font-size: 14px;
-          }
-          
-          .ticket-detail-value {
-            font-size: 14px;
-            text-align: right;
-          }
-          
-          .ticket-qr {
+            font-family: 'Roboto', 'Segoe UI', Helvetica, Arial, sans-serif;
+            background-color: #f4f6f8;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: calc(100% - 130px);
+          }
+
+          .ticket {
+            display: flex;
+            width: 600px;
+            height: 220px;
+            background: linear-gradient(to right, #0f0c29, #302b63, #f7b733);
+            border-radius: 12px;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+            color: #fff;
+          }
+
+          .ticket-left {
+            display: flex;
+            flex: 2.5;
+            align-items: center;
+            gap: 20px;
             position: relative;
+            padding-left: 0;
+          }
+
+          .photo {
+            width: 160px;
+            height: 220px;
+            border-radius: 5% 50% 50% 5%;
+            background-color: #e0e0e0;
+            color: #222;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            overflow: hidden;
           }
           
-          .ticket-qr-inner {
-            border: 4px solid #000;
-            padding: 10px;
-            background: white;
+          .photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
           }
-          
-          .ticket-qr img {
-            width: 180px;
-            height: 180px;
+
+          .ticket-info {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
           }
-          
-          .ticket-footer {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            font-size: 8px;
-            text-align: right;
-            color: #555;
+
+          .ticket-info h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+          }
+
+          .ticket-info .datetime {
+            font-size: 14px;
+            color: #add6ff;
+            margin: 4px 0;
+          }
+
+          .ticket-info .name,
+          .ticket-info .ticket-id {
+            font-size: 14px;
+            margin: 2px 0;
+          }
+
+          .divider {
+            width: 2px;
+            height: 80%;
+            align-self: center;
+            background: repeating-linear-gradient(
+              to bottom,
+              rgba(255, 255, 255, 0.8),
+              rgba(255, 255, 255, 0.8) 4px,
+              transparent 4px,
+              transparent 8px
+            );
+            box-shadow: 0 0 2px rgba(255, 255, 255, 0.4);
+            filter: blur(0.3px);
+            mix-blend-mode: screen;
+          }
+
+          .ticket-right {
+            flex: 1.2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #ffffff;
+          }
+
+          .ticket-right img {
+            width: 100px;
+            height: 100px;
           }
         </style>
       </head>
       <body>
-        <div class="ticket-container">
+        <div class="ticket">
           <div class="ticket-left">
-            <div class="ticket-detail">
-              <div class="ticket-detail-label">Name:</div>
-              <div class="ticket-detail-value">${name}</div>
+            <div class="photo">
+              ${flyerUrl ? `<img src="${flyerUrl}" alt="Event Flyer">` : 'Photo'}
             </div>
-            <div class="ticket-detail">
-              <div class="ticket-detail-label">Passcode:</div>
-              <div class="ticket-detail-value">${passcode}</div>
-            </div>
-            <div class="ticket-detail">
-              <div class="ticket-detail-label">Time:</div>
-              <div class="ticket-detail-value">${time}</div>
-            </div>
-            <div class="ticket-detail">
-              <div class="ticket-detail-label">Date:</div>
-              <div class="ticket-detail-value">${date}</div>
+            <div class="ticket-info">
+              <h2>${title}</h2>
+              <div class="datetime">${date}, ${time}</div>
+              <div class="name">👤 :${name}</div>
+              <div class="ticket-id">🎟 :#${passcode}</div>
             </div>
           </div>
+          <div class="divider"></div>
           <div class="ticket-right">
-            <div class="ticket-header">
-              <h1>RSRVD EVENT TICKET</h1>
-              <h2>${title}</h2>
-            </div>
-            <div class="ticket-qr">
-              <div class="ticket-qr-inner">
-                <img src="${qrCodeData}" alt="QR Code" />
-              </div>
-              <div class="ticket-footer">
-                <p>This ticket is your entry pass to the event. Please present this ticket (printed or digital) at the entrance.</p>
-                <p>Generated on ${new Date().toLocaleDateString()}</p>
-              </div>
-            </div>
+            <img src="${qrCodeData}" alt="QR Code" />
           </div>
         </div>
-        
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-        <script>
-          // This script will run in the browser when the HTML is rendered
-          window.onload = function() {
-            // Wait a moment for fonts to load
-            setTimeout(() => {
-              const { jsPDF } = window.jspdf;
-              
-              html2canvas(document.querySelector('.ticket-container'), {
-                scale: 2, // Higher scale for better quality
-                useCORS: true, // To handle cross-origin images like the QR code
-                logging: false
-              }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF({
-                  orientation: 'landscape',
-                  unit: 'px',
-                  format: [595, 400]
-                });
-                
-                pdf.addImage(imgData, 'PNG', 0, 0, 595, 400);
-                pdf.save('${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_ticket.pdf');
-              });
-            }, 500);
-          }
-        </script>
       </body>
       </html>
       `;
@@ -209,7 +174,7 @@ exports.generateTicketPdf = async (options) => {
       // For now, let's create a simple PDF with PDFKit that resembles our design
       const PDFDocument = require('pdfkit');
       const doc = new PDFDocument({
-        size: [595, 400],
+        size: [600, 260],  // Sized for our ticket
         margin: 0,
         info: {
           Title: `${title} - Ticket`,
@@ -226,76 +191,91 @@ exports.generateTicketPdf = async (options) => {
         resolve(pdfData);
       });
       
-      // Draw the ticket container border
-      doc.rect(0, 0, 595, 400).stroke();
+      // Set up gradient background (approximation as PDFKit doesn't support CSS gradients directly)
+      doc.rect(0, 0, 480, 220).fill('#302b63');  // Main ticket area with mid-gradient color
       
-      // Draw the vertical line separating the left and right sections
-      doc.moveTo(235, 0).lineTo(235, 400).stroke();
+      // Draw gradient effect manually with color bands
+      doc.rect(0, 0, 160, 220).fill('#0f0c29');  // Left side, darker color
+      doc.rect(320, 0, 160, 220).fill('#f7b733');  // Right side, orange color
       
-      // Draw the horizontal line for the header
-      doc.moveTo(235, 130).lineTo(595, 130).stroke();
+      // Photo area - If flyer image exists, add it
+      if (flyerUrl) {
+        doc.save();
+        // Create a clipping path for the curved rectangle
+        doc.roundedRect(0, 0, 160, 220, 5, 50, 50, 5).clip();
+        
+        try {
+          // Try to add the image, with fallback if it fails
+          doc.image(flyerUrl, 0, 0, {
+            width: 160,
+            height: 220,
+            fit: [160, 220]
+          });
+        } catch (err) {
+          console.error('Error adding flyer image:', err);
+          // If image can't be loaded, create a placeholder
+          doc.rect(0, 0, 160, 220).fill('#e0e0e0');
+          doc.font('Helvetica-Bold').fontSize(18).fillColor('#222');
+          doc.text('Photo', 60, 100, {
+            align: 'center',
+            width: 40
+          });
+        }
+        doc.restore();
+      } else {
+        // No image, create a placeholder
+        doc.save();
+        doc.roundedRect(0, 0, 160, 220, 5, 50, 50, 5).fill('#e0e0e0');
+        doc.font('Helvetica-Bold').fontSize(18).fillColor('#222');
+        doc.text('Photo', 60, 100, {
+          align: 'center',
+          width: 40
+        });
+        doc.restore();
+      }
       
-      // Write the header text
-      doc.font('Helvetica-Bold').fontSize(24)
-         .text('RSRVD EVENT TICKET', 235, 50, {
-           width: 360,
-           align: 'center'
-         });
+      // Main ticket information (right side of photo)
+      doc.font('Helvetica-Bold').fontSize(20).fillColor('#fff');
+      doc.text(title, 170, 70, {
+        width: 250
+      });
       
-      doc.font('Helvetica-Bold').fontSize(20)
-         .text(title, 235, 90, {
-           width: 360,
-           align: 'center'
-         });
+      doc.font('Helvetica').fontSize(14).fillColor('#add6ff');
+      doc.text(`${date}, ${time}`, 170, 100, {
+        width: 250
+      });
       
-      // Write the ticket details
-      doc.font('Helvetica-Bold').fontSize(14)
-         .text('Name:', 20, 40);
+      doc.font('Helvetica').fontSize(14).fillColor('#fff');
+      doc.text(`👤 :${name}`, 170, 125, {
+        width: 250
+      });
       
-      doc.font('Helvetica').fontSize(14)
-         .text(name, 235 - 20, 40, { align: 'right' });
+      doc.font('Helvetica').fontSize(14).fillColor('#fff');
+      doc.text(`🎟 :#${passcode}`, 170, 150, {
+        width: 250
+      });
       
-      doc.font('Helvetica-Bold').fontSize(14)
-         .text('Passcode:', 20, 80);
+      // Draw the divider
+      doc.save();
+      // Create a dashed line for the divider
+      doc.strokeColor('white').opacity(0.8);
+      doc.dash(4, 4); // 4pt dash, 4pt gap
+      doc.moveTo(470, 40).lineTo(470, 180).stroke();
+      doc.restore();
       
-      doc.font('Helvetica').fontSize(14)
-         .text(passcode, 235 - 20, 80, { align: 'right' });
-      
-      doc.font('Helvetica-Bold').fontSize(14)
-         .text('Time:', 20, 120);
-      
-      doc.font('Helvetica').fontSize(14)
-         .text(time, 235 - 20, 120, { align: 'right' });
-      
-      doc.font('Helvetica-Bold').fontSize(14)
-         .text('Date:', 20, 160);
-      
-      doc.font('Helvetica').fontSize(14)
-         .text(date, 235 - 20, 160, { align: 'right' });
+      // Right section with QR code
+      doc.rect(480, 0, 120, 220).fill('#ffffff');
       
       // Draw the QR code
       if (qrCodeData) {
         const qrImage = qrCodeData.replace(/^data:image\/(png|jpg|jpeg);base64,/, '');
         
-        // Draw border around QR code
-        doc.rect(325, 165, 200, 200).lineWidth(4).stroke();
-        
         // Draw the QR code image
-        doc.image(Buffer.from(qrImage, 'base64'), 335, 175, {
-          width: 180,
-          height: 180
+        doc.image(Buffer.from(qrImage, 'base64'), 490, 60, {
+          width: 100,
+          height: 100
         });
       }
-      
-      // Add footer text
-      doc.fontSize(8)
-         .fillColor('#555')
-         .font('Helvetica')
-         .text('This ticket is your entry pass to the event. Please present this ticket (printed or digital) at the entrance.', 
-           290, 380, {
-           width: 300,
-           align: 'right'
-         });
       
       // Finalize the PDF
       doc.end();
