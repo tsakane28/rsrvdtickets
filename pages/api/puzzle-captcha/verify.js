@@ -8,6 +8,17 @@ const CAPTCHA_SECRET = process.env.SESSION_SECRET || '8c14a5c7bc4dc7b624df94f93e
  * Verify the puzzle CAPTCHA solution
  */
 const handler = async (req, res) => {
+  // Add CORS headers for API requests
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Special handling for OPTIONS requests (preflight)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   try {
     if (req.method !== 'POST') {
       return res.status(405).json({
@@ -26,6 +37,8 @@ const handler = async (req, res) => {
         message: 'Missing token or position'
       });
     }
+
+    console.log('Verifying puzzle solution:', position);
 
     // Decrypt the token to get the expected position
     const decryptedData = decryptPuzzleToken(token);
@@ -53,6 +66,8 @@ const handler = async (req, res) => {
     const isCorrect =
       Math.abs(position.x - expectedPosition.x) <= tolerance &&
       Math.abs(position.y - expectedPosition.y) <= tolerance;
+
+    console.log('Verification result:', isCorrect ? 'correct' : 'incorrect');
 
     if (isCorrect) {
       return res.status(200).json({
@@ -108,4 +123,5 @@ function decryptPuzzleToken(token) {
   }
 }
 
+// Apply rate limiting to the handler
 export default ticketRateLimiter(handler); 
