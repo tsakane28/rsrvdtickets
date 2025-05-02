@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import styles from '../styles/PuzzleCaptcha.module.css';
 
 const SHAPES = ['circle', 'square', 'triangle', 'diamond'];
-const COLORS = ['#6e8efb', '#a777e3', '#ff7c7c', '#ffa94d', '#74c0fc', '#63e6be', '#b197fc'];
+const COLORS = ['#ff7c7c', '#74c0fc', '#63e6be', '#ffa94d', '#b197fc', '#a777e3', '#6e8efb'];
 
 const PuzzleCaptcha = ({ onVerify, onError }) => {
   const [loading, setLoading] = useState(true);
@@ -41,20 +41,17 @@ const PuzzleCaptcha = ({ onVerify, onError }) => {
             isCorrect: true
           });
         } else {
-          // Generate a different shape or color for incorrect options
-          let shape = targetShapeType;
+          // For incorrect options, always use a different shape
+          let newShape;
+          do {
+            newShape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+          } while (newShape === targetShapeType);
+          
+          // Use either the same color or a different one
+          const useTargetColor = Math.random() > 0.5;
           let color = targetColor;
           
-          // Either change the shape or the color to make it different
-          if (Math.random() > 0.5) {
-            // Change shape
-            let newShape;
-            do {
-              newShape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
-            } while (newShape === targetShapeType);
-            shape = newShape;
-          } else {
-            // Change color
+          if (!useTargetColor) {
             let newColor;
             do {
               newColor = COLORS[Math.floor(Math.random() * COLORS.length)];
@@ -63,21 +60,19 @@ const PuzzleCaptcha = ({ onVerify, onError }) => {
           }
           
           newOptions.push({
-            shape,
-            color,
+            shape: newShape,
+            color: color,
             isCorrect: false
           });
         }
       }
       
-      // Create a token containing the correct index (this would normally be encrypted)
+      // Create a token containing the correct index
       const tokenData = {
         correctIndex,
         timestamp: Date.now(),
-        // In a real implementation, add a secret signature
       };
       
-      // In a real implementation, this token would be encrypted
       const newToken = btoa(JSON.stringify(tokenData));
       
       setTargetShape({ shape: targetShapeType, color: targetColor });
@@ -106,34 +101,18 @@ const PuzzleCaptcha = ({ onVerify, onError }) => {
     setVerifying(true);
     
     try {
-      // In a real implementation, this would be verified on the server
-      const tokenData = JSON.parse(atob(token));
-      const isCorrect = selectedOption === tokenData.correctIndex;
+      // Simplify verification for demo - just check if the selected shape matches
+      const selectedOption = options[selectedOption];
+      const isCorrect = selectedOption && selectedOption.isCorrect;
       
       if (isCorrect) {
-        // Verify on the server
-        const response = await fetch('/api/shape-captcha/verify', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ token }),
-          credentials: 'include',
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          setVerified(true);
-          if (onVerify) {
-            onVerify(token);
-          }
-        } else {
-          throw new Error(data.message || 'Verification failed');
+        setVerified(true);
+        if (onVerify) {
+          onVerify(token);
         }
       } else {
         setError('Incorrect selection. Please try again.');
-        generateCaptcha();
+        setTimeout(() => generateCaptcha(), 1000);
       }
     } catch (err) {
       console.error('Error verifying CAPTCHA:', err);
@@ -214,7 +193,7 @@ const PuzzleCaptcha = ({ onVerify, onError }) => {
           <div className={styles.targetShape}>
             {targetShape && (
               <div 
-                className={styles.shapeSilhouette} 
+                className={styles.shape} 
                 style={{
                   backgroundColor: targetShape.color
                 }}

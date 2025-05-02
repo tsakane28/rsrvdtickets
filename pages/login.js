@@ -19,6 +19,7 @@ const Login = () => {
 	const isFormValid = email && password && captchaVerified;
 
 	const handleCaptchaVerify = (token) => {
+		console.log('CAPTCHA verified successfully');
 		setCaptchaVerified(true);
 		setCaptchaError(null);
 	};
