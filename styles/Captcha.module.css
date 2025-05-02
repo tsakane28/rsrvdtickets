@@ -79,4 +79,10 @@
   color: #e53e3e;
   font-size: 12px;
   margin-top: 4px;
+}
+
+.altNote {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
 } 
