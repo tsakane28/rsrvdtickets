@@ -1,117 +1,80 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import styles from '../styles/Captcha.module.css';
 
 /**
  * CAPTCHA component for form validation
  * @param {Object} props - Component props
- * @param {Function} props.onChange - Called when CAPTCHA input changes
- * @param {boolean} props.required - Whether CAPTCHA is required
+ * @param {Function} props.setCaptchaValue - Called when CAPTCHA input changes
  */
-const Captcha = ({ onChange, required = true }) => {
-  const [captchaUrl, setCaptchaUrl] = useState('');
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const captchaRef = useRef(null);
+const Captcha = ({ setCaptchaValue }) => {
+  const [timestamp, setTimestamp] = useState(Date.now());
+  const [loading, setLoading] = useState(true);
+  const [errorCount, setErrorCount] = useState(0);
 
-  // Load the CAPTCHA image
-  const loadCaptcha = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Append timestamp to prevent caching
-      const timestamp = new Date().getTime();
-      setCaptchaUrl(`/api/captcha?t=${timestamp}`);
-      
-      setInputValue('');
-      if (onChange) onChange('');
-      
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error loading CAPTCHA:', error);
-      setError('Failed to load CAPTCHA');
-      setIsLoading(false);
+  // Function to refresh the CAPTCHA
+  const refreshCaptcha = () => {
+    setLoading(true);
+    setTimestamp(Date.now());
+    setCaptchaValue(''); // Clear the input when refreshing
+  };
+
+  // Handle image load complete
+  const handleImageLoad = () => {
+    setLoading(false);
+    setErrorCount(0);
+  };
+
+  // Handle image load error
+  const handleImageError = () => {
+    setLoading(false);
+    setErrorCount(prev => prev + 1);
+    
+    // Try refreshing automatically if error occurs (max 3 attempts)
+    if (errorCount < 3) {
+      setTimeout(refreshCaptcha, 1000);
     }
   };
 
-  // Initialize CAPTCHA on component mount
+  // Set up initial load
   useEffect(() => {
-    loadCaptcha();
+    // Nothing special needed here, the img will load with the src provided
   }, []);
 
-  // Handle input change
-  const handleChange = (e) => {
-    const value = e.target.value;
-    setInputValue(value);
-    if (onChange) onChange(value);
-  };
-
-  // Handle refresh button click
-  const handleRefresh = () => {
-    loadCaptcha();
-  };
-
   return (
-    <div className="w-full space-y-2">
-      <label className="block text-sm font-medium text-gray-700">
-        Verification Code {required && <span className="text-red-500">*</span>}
-      </label>
-      
-      <div className="flex items-center space-x-4">
-        {/* CAPTCHA Image */}
-        <div className="relative rounded border border-gray-300 overflow-hidden bg-gray-50 h-16 w-48 flex items-center justify-center">
-          {isLoading ? (
-            <div className="animate-pulse">Loading...</div>
-          ) : error ? (
-            <div className="text-red-500 text-sm text-center">{error}</div>
-          ) : (
-            <img 
-              src={captchaUrl} 
-              alt="CAPTCHA" 
-              className="h-full w-full object-contain" 
-              ref={captchaRef}
-            />
-          )}
-        </div>
-        
-        {/* Refresh button */}
-        <button
+    <div className={styles.captchaContainer}>
+      <div className={styles.captchaImageContainer}>
+        {loading && <div className={styles.loadingSpinner}>Loading...</div>}
+        <img 
+          src={`/api/captcha?t=${timestamp}`} 
+          alt="CAPTCHA verification" 
+          className={styles.captchaImage}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+        />
+        <button 
           type="button"
-          onClick={handleRefresh}
-          className="p-2 bg-gray-200 hover:bg-gray-300 rounded"
+          onClick={refreshCaptcha}
+          className={styles.refreshButton}
           aria-label="Refresh CAPTCHA"
         >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            className="h-5 w-5" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
-            />
-          </svg>
+          ↻
         </button>
       </div>
-      
-      {/* Input field */}
-      <input
-        type="text"
-        value={inputValue}
-        onChange={handleChange}
-        placeholder="Enter the code shown above"
-        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-        required={required}
-        aria-label="CAPTCHA verification code"
-      />
-      
-      <p className="text-xs text-gray-500">
-        Enter the characters shown in the image above.
-      </p>
+      <div className={styles.captchaInputContainer}>
+        <input
+          type="text"
+          placeholder="Enter CAPTCHA text"
+          className={styles.captchaInput}
+          onChange={(e) => setCaptchaValue(e.target.value)}
+          required
+          aria-label="CAPTCHA input"
+        />
+        {errorCount >= 3 && (
+          <p className={styles.errorText}>
+            CAPTCHA not loading. Please try again later or contact support.
+          </p>
+        )}
+      </div>
     </div>
   );
 };

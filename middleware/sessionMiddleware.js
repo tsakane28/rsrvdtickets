@@ -2,6 +2,7 @@ import session from 'express-session';
 import { parse } from 'cookie';
 
 const SESSION_SECRET = process.env.SESSION_SECRET || '8c14a5c7bc4dc7b624df94f93effa546';
+const isProduction = process.env.NODE_ENV === 'production';
 
 /**
  * Express session middleware configured for Next.js API routes
@@ -11,10 +12,10 @@ export const sessionMiddleware = session({
   resave: false,
   saveUninitialized: true,
   cookie: { 
-    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+    secure: isProduction, // Use secure cookies in production
     httpOnly: true,
     maxAge: 60 * 60 * 1000, // 1 hour
-    sameSite: 'strict'
+    sameSite: 'lax' // Changed from 'strict' to 'lax' for better compatibility
   }
 });
 
@@ -25,9 +26,17 @@ export const sessionMiddleware = session({
  */
 export const withSession = (handler) => {
   return async (req, res) => {
+    // For GET requests to captcha endpoint, ensure proper headers
+    if (req.method === 'GET' && req.url.startsWith('/api/captcha')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    
     return new Promise((resolve, reject) => {
       sessionMiddleware(req, res, (result) => {
         if (result instanceof Error) {
+          console.error('Session middleware error:', result);
           return reject(result);
         }
         
@@ -46,7 +55,7 @@ export const withSession = (handler) => {
 export const setSessionValue = (req, key, value) => {
   if (!req.session) {
     console.warn('Session not initialized. Make sure to use withSession middleware.');
-    return;
+    return Promise.resolve(); // Return a resolved promise even if there's an issue
   }
   
   req.session[key] = value;
