@@ -5,16 +5,53 @@ import { HiMail } from "react-icons/hi";
 import { AiTwotoneLock } from "react-icons/ai";
 import { useRouter } from "next/router";
 import { firebaseLoginUser } from "../utils/util";
+import Captcha from '../components/Captcha';
 
 
 const login = () => {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const [captchaValue, setCaptchaValue] = useState('');
 	const router = useRouter();
+	const [loading, setLoading] = useState(false);
+	const [errorMessage, setErrorMessage] = useState('');
 
-	const handleSubmit = (e) => {
+	const isFormValid = email && password && captchaValue;
+
+	const handleSubmit = async (e) => {
 		e.preventDefault();
-		firebaseLoginUser(email, password, router);
+		
+		if (!isFormValid) {
+			return;
+		}
+		
+		setLoading(true);
+		
+		try {
+			// First verify the CAPTCHA
+			const captchaResponse = await fetch('/api/verify-captcha', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ captchaValue }),
+			});
+			
+			const captchaResult = await captchaResponse.json();
+			
+			if (!captchaResult.success) {
+				setLoading(false);
+				setErrorMessage('CAPTCHA verification failed. Please try again.');
+				return;
+			}
+			
+			// Continue with normal login flow
+			firebaseLoginUser(email, password, router);
+		} catch (err) {
+			console.error(err);
+			setLoading(false);
+			setErrorMessage('An error occurred during login');
+		}
 	};
 	return (
 		<div>
@@ -60,12 +97,15 @@ const login = () => {
 							/>
 							<AiTwotoneLock className=' absolute left-4 top-3 text-gray-300 text-xl' />
 						</div>
-
+						<div className="mb-4">
+							<Captcha onChange={setCaptchaValue} required={true} />
+						</div>
 						<button
 							type='submit'
-							className='bg-[#FFD95A] p-3 font-medium hover:bg-[#C07F00] hover:text-[#FFF8DE] mb-3 rounded-md'
+							className='w-full py-3 bg-black text-white rounded-md hover:bg-gray-800'
+							disabled={!isFormValid || loading}
 						>
-							SIGN IN
+							{loading ? 'Logging in...' : 'Login'}
 						</button>
 						<p className='text-center'>
 							Don't have an account?{" "}

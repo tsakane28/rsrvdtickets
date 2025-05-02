@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../../utils/firebase';
 import Head from 'next/head';
-import crypto from 'crypto';
 
 /**
  * Ticket verification page - displays when a QR code is scanned
@@ -11,7 +8,7 @@ import crypto from 'crypto';
  */
 export default function VerifyTicket() {
   const router = useRouter();
-  const { id: ticketId, eventId } = router.query;
+  const { id: ticketId, eventId, sig, ts } = router.query;
   
   const [loading, setLoading] = useState(true);
   const [verified, setVerified] = useState(false);
@@ -21,107 +18,61 @@ export default function VerifyTicket() {
 
   useEffect(() => {
     const verifyTicket = async () => {
-      if (!ticketId) return;
+      if (!ticketId || !router.isReady) return;
       
       try {
         setLoading(true);
         
-        // Verify signature first
-        const { sig, ts } = router.query;
+        // Check if we have the necessary query parameters
         if (!sig || !ts) {
-          setError("Invalid ticket: missing signature");
+          setError("Invalid ticket: missing signature or timestamp");
           setLoading(false);
           return;
         }
         
-        // Check if timestamp is valid (not too old)
-        const now = Date.now();
-        const ticketTime = parseInt(ts, 10);
-        const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+        // Call the server-side API endpoint for secure verification
+        const response = await fetch('/api/verify-ticket', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ticketId,
+            eventId: eventId || '',
+            signature: sig,
+            timestamp: parseInt(ts, 10)
+          }),
+        });
         
-        if (isNaN(ticketTime) || (now - ticketTime) > MAX_AGE) {
-          setError("Ticket expired or invalid timestamp");
+        const data = await response.json();
+        
+        if (!response.ok) {
+          setError(data.message || 'Error verifying ticket');
           setLoading(false);
           return;
         }
         
-        // Verify signature
-        const dataToVerify = `${ticketId}:${eventId || ''}:${ts}`;
-        const expectedSig = crypto
-          .createHmac('sha256', process.env.QR_SIGNATURE_KEY)
-          .update(dataToVerify)
-          .digest('hex');
-          
-        if (sig !== expectedSig) {
-          setError("Invalid ticket signature");
-          setLoading(false);
-          return;
-        }
-        
-        // If we have a specific eventId, check that event directly
-        if (eventId) {
-          const eventDoc = await getDoc(doc(db, "events", eventId));
-          
-          if (!eventDoc.exists()) {
-            setError("Event not found");
-            setLoading(false);
-            return;
-          }
-          
-          const eventData = eventDoc.data();
-          const foundAttendee = eventData.attendees?.find(
-            (attendee) => attendee.passcode === ticketId
-          );
-          
-          if (foundAttendee) {
-            setVerified(true);
-            setAttendee(foundAttendee);
-            setEvent(eventData);
-          } else {
-            setError("Ticket not found for this event");
-          }
-          
+        if (data.success) {
+          setVerified(true);
+          setAttendee(data.attendee);
+          setEvent(data.event);
         } else {
-          // Search all events for the ticket
-          let ticketFound = false;
-          
-          const eventsCollection = collection(db, "events");
-          const eventsSnapshot = await getDocs(eventsCollection);
-          
-          for (const eventDoc of eventsSnapshot.docs) {
-            const eventData = eventDoc.data();
-            const foundAttendee = eventData.attendees?.find(
-              (attendee) => attendee.passcode === ticketId
-            );
-            
-            if (foundAttendee) {
-              setVerified(true);
-              setAttendee(foundAttendee);
-              setEvent(eventData);
-              ticketFound = true;
-              break;
-            }
-          }
-          
-          if (!ticketFound) {
-            setError("Ticket not found in any event");
-          }
+          setError(data.message || 'Ticket verification failed');
         }
-        
       } catch (err) {
         console.error("Error verifying ticket:", err);
-        setError("Error verifying ticket");
+        setError("Error connecting to verification service");
       } finally {
         setLoading(false);
       }
     };
 
     verifyTicket();
-  }, [ticketId, eventId, router.query]);
+  }, [ticketId, eventId, sig, ts, router.isReady]);
 
   const getPaymentStatus = () => {
-    if (!attendee?.paymentInfo) return "Unknown";
-    return attendee.paymentInfo.paid ? "Paid" : "Unpaid";
+    if (!attendee?.paymentStatus) return "Unknown";
+    return attendee.paymentStatus;
   };
 
   return (
