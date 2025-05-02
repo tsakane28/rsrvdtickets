@@ -98,8 +98,49 @@ export const paymentRateLimiter = rateLimiter({
  * Specialized rate limiter for ticket verification
  * Moderate protection for verification endpoints
  */
-export const ticketRateLimiter = rateLimiter({
-  limit: 20, // 20 attempts
-  windowMs: 2 * 60 * 1000, // 2 minutes
-  message: 'Too many verification attempts, please try again later',
-}); 
+export const ticketRateLimiter = (handler) => {
+  // Store rate limit data in memory (simple implementation)
+  // Note: This is reset on serverless function cold starts
+  const ipRequests = new Map();
+  
+  return async (req, res) => {
+    // Get client IP
+    const clientIp = 
+      req.headers['x-forwarded-for']?.split(',').shift() || 
+      req.socket?.remoteAddress ||
+      'unknown';
+    
+    const now = Date.now();
+    const windowMs = 60 * 1000; // 1 minute window
+    const maxRequests = 30; // Max requests per window
+    
+    // Get existing requests data for this IP or create new entry
+    const ipData = ipRequests.get(clientIp) || { count: 0, resetTime: now + windowMs };
+    
+    // If window has expired, reset the counter
+    if (now > ipData.resetTime) {
+      ipData.count = 0;
+      ipData.resetTime = now + windowMs;
+    }
+    
+    // Increment request count
+    ipData.count += 1;
+    ipRequests.set(clientIp, ipData);
+    
+    // Add rate limit headers
+    res.setHeader('X-RateLimit-Limit', maxRequests);
+    res.setHeader('X-RateLimit-Remaining', Math.max(0, maxRequests - ipData.count));
+    res.setHeader('X-RateLimit-Reset', Math.ceil(ipData.resetTime / 1000));
+    
+    // If rate limit exceeded
+    if (ipData.count > maxRequests) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many requests, please try again later.'
+      });
+    }
+    
+    // Continue to the actual handler
+    return handler(req, res);
+  };
+}; 

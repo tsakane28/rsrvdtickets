@@ -10,6 +10,7 @@ const PuzzleCaptcha = ({ onVerify }) => {
   const [isVerified, setIsVerified] = useState(false);
   const [error, setError] = useState(null);
   const [attempts, setAttempts] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
   
   const puzzlePieceRef = useRef(null);
   const containerRef = useRef(null);
@@ -26,10 +27,13 @@ const PuzzleCaptcha = ({ onVerify }) => {
       setError(null);
       setIsVerified(false);
       
-      const response = await fetch(`/api/puzzle-captcha/generate?t=${Date.now()}`);
+      const timestamp = Date.now();
+      const response = await fetch(`/api/puzzle-captcha/generate?t=${timestamp}`);
       
       if (!response.ok) {
-        throw new Error('Failed to load puzzle captcha');
+        const errorData = await response.text();
+        console.error('Puzzle loading error:', response.status, errorData);
+        throw new Error(`Server error: ${response.status}`);
       }
       
       const data = await response.json();
@@ -38,14 +42,25 @@ const PuzzleCaptcha = ({ onVerify }) => {
         throw new Error(data.message || 'Failed to generate puzzle');
       }
       
+      console.log('Puzzle loaded successfully');
       setPuzzleData(data);
       // Reset piece position to starting position
       setPosition({ x: 0, y: 0 });
       setAttempts(0);
       
     } catch (err) {
-      setError('Failed to load CAPTCHA puzzle');
-      console.error(err);
+      console.error('Failed to load CAPTCHA puzzle:', err);
+      setError(`Failed to load CAPTCHA: ${err.message}. Retry ${retryCount+1}/3`);
+      
+      // Retry loading up to 3 times with increasing delays
+      if (retryCount < 3) {
+        setTimeout(() => {
+          setRetryCount(retryCount + 1);
+          loadPuzzle();
+        }, 1000 * (retryCount + 1)); // Progressive backoff
+      } else {
+        setError('Unable to load CAPTCHA. Please reload the page or try again later.');
+      }
     } finally {
       setLoading(false);
     }
@@ -81,8 +96,8 @@ const PuzzleCaptcha = ({ onVerify }) => {
     const newY = clientY - startPos.y;
     
     // Get container bounds
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const pieceRect = puzzlePieceRef.current.getBoundingClientRect();
+    const containerRect = containerRef.current?.getBoundingClientRect() || { width: 300, height: 160 };
+    const pieceRect = puzzlePieceRef.current?.getBoundingClientRect() || { width: 48, height: 48 };
     
     // Ensure the piece stays within the container
     const maxX = containerRect.width - pieceRect.width;
@@ -131,6 +146,8 @@ const PuzzleCaptcha = ({ onVerify }) => {
         throw new Error('Invalid puzzle data');
       }
       
+      setLoading(true);
+      
       const response = await fetch('/api/puzzle-captcha/verify', {
         method: 'POST',
         headers: {
@@ -141,6 +158,12 @@ const PuzzleCaptcha = ({ onVerify }) => {
           position: position
         })
       });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Verification error:', response.status, errorText);
+        throw new Error(`Server verification error: ${response.status}`);
+      }
       
       const data = await response.json();
       
@@ -154,7 +177,11 @@ const PuzzleCaptcha = ({ onVerify }) => {
       
     } catch (err) {
       console.error('Verification error:', err);
-      setError('Failed to verify puzzle solution');
+      setError('Failed to verify puzzle solution. Please try again.');
+      // Reload the puzzle after a brief delay
+      setTimeout(loadPuzzle, 1500);
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -197,31 +224,48 @@ const PuzzleCaptcha = ({ onVerify }) => {
         {loading ? (
           <div className={styles.loading}>Loading puzzle...</div>
         ) : error ? (
-          <div className={styles.error}>{error}</div>
+          <div className={styles.error}>
+            {error}
+            <button 
+              className={styles.retryButton} 
+              onClick={() => {
+                setRetryCount(0);
+                loadPuzzle();
+              }}
+            >
+              Try again
+            </button>
+          </div>
         ) : (
           <>
             {/* Background puzzle image with hole */}
             <div className={styles.puzzleBackground}>
-              {puzzleData && (
+              {puzzleData && puzzleData.backgroundImage && (
                 <img 
                   src={puzzleData.backgroundImage} 
                   alt="Puzzle background" 
-                  className={styles.puzzleImage} 
+                  className={styles.puzzleImage}
+                  onError={(e) => {
+                    console.error('Background image failed to load:', e);
+                    setError('Failed to load puzzle images');
+                  }}
                 />
               )}
             </div>
             
             {/* Draggable puzzle piece */}
-            <div 
-              ref={puzzlePieceRef}
-              className={`${styles.puzzlePiece} ${isVerified ? styles.verified : ''} ${isDragging ? styles.dragging : ''}`}
-              style={{ 
-                transform: `translate(${position.x}px, ${position.y}px)`,
-                backgroundImage: puzzleData ? `url(${puzzleData.pieceImage})` : 'none',
-              }}
-              onMouseDown={handleStart}
-              onTouchStart={handleStart}
-            />
+            {puzzleData && puzzleData.pieceImage && (
+              <div 
+                ref={puzzlePieceRef}
+                className={`${styles.puzzlePiece} ${isVerified ? styles.verified : ''} ${isDragging ? styles.dragging : ''}`}
+                style={{ 
+                  transform: `translate(${position.x}px, ${position.y}px)`,
+                  backgroundImage: `url(${puzzleData.pieceImage})`,
+                }}
+                onMouseDown={handleStart}
+                onTouchStart={handleStart}
+              />
+            )}
           </>
         )}
       </div>
