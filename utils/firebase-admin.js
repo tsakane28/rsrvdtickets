@@ -1,89 +1,66 @@
-import admin from 'firebase-admin';
+// Mock firebase-admin implementation for development
+// Replace with actual Firebase Admin SDK in production
 
-// Check if we're already initialized to prevent multiple initializations
-let firebaseAdmin;
-
-if (!admin.apps.length) {
-  // Get the service account credentials
-  // If running in production, use environment variables
-  // If running locally, use a service account file
-  let credential;
+// Create mock auth object
+export const auth = {
+  verifyIdToken: async (token) => {
+    console.log('Development mode: Mock verifyIdToken called with token', token);
+    
+    // Return mock user data
+    return {
+      uid: 'dev-user-123',
+      email: 'dev@example.com',
+      email_verified: true
+    };
+  },
   
-  if (process.env.FIREBASE_ADMIN_CREDENTIALS) {
-    // Parse the environment variable containing the service account JSON
-    try {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS);
-      credential = admin.credential.cert(serviceAccount);
-    } catch (error) {
-      console.error('Error parsing FIREBASE_ADMIN_CREDENTIALS:', error);
-      throw new Error('Invalid Firebase Admin credentials format');
-    }
-  } else {
-    // Use the application default credentials
-    credential = admin.credential.applicationDefault();
-  }
+  getUserByEmail: async (email) => {
+    console.log('Development mode: Mock getUserByEmail called with email', email);
+    
+    // Return mock user record
+    return {
+      uid: 'dev-user-123',
+      email: email,
+      emailVerified: true,
+      displayName: 'Development User'
+    };
+  },
   
-  // Initialize the app with the service account
-  firebaseAdmin = admin.initializeApp({
-    credential,
-    databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  });
-} else {
-  // Reuse existing app if already initialized
-  firebaseAdmin = admin.app();
-}
-
-// Export the admin SDK components
-export const auth = firebaseAdmin.auth();
-export const firestore = firebaseAdmin.firestore();
-export const storage = firebaseAdmin.storage();
-
-/**
- * Utility for verifying Firebase ID tokens
- * @param {string} token - The Firebase ID token to verify
- * @returns {Promise<Object>} - The decoded token
- */
-export const verifyIdToken = async (token) => {
-  try {
-    const decodedToken = await auth.verifyIdToken(token);
-    return decodedToken;
-  } catch (error) {
-    console.error('Error verifying ID token:', error);
-    throw error;
+  setCustomUserClaims: async (uid, claims) => {
+    console.log('Development mode: Mock setCustomUserClaims called with', { uid, claims });
+    return Promise.resolve();
   }
 };
 
-/**
- * Get a user from Firebase Auth by their email
- * @param {string} email - The user's email address
- * @returns {Promise<Object>} - The user record
- */
-export const getUserByEmail = async (email) => {
-  try {
-    const userRecord = await auth.getUserByEmail(email);
-    return userRecord;
-  } catch (error) {
-    console.error('Error getting user by email:', error);
-    throw error;
+// Create mock firestore object
+export const firestore = {
+  collection: (path) => {
+    console.log('Development mode: Mock firestore.collection called with path', path);
+    return {
+      doc: (id) => ({
+        get: async () => ({
+          exists: true,
+          data: () => ({ id, mockData: true })
+        })
+      })
+    };
   }
 };
 
-/**
- * Update a user's custom claims
- * @param {string} uid - The user's UID
- * @param {Object} claims - The custom claims to set
- * @returns {Promise<void>}
- */
-export const setCustomUserClaims = async (uid, claims) => {
-  try {
-    await auth.setCustomUserClaims(uid, claims);
-  } catch (error) {
-    console.error('Error setting custom user claims:', error);
-    throw error;
-  }
+// Create mock storage object
+export const storage = {
+  bucket: () => ({
+    file: (path) => ({
+      getSignedUrl: async () => ['https://example.com/mock-signed-url']
+    })
+  })
 };
 
-// Export the admin instance as a default export
+// Export mock admin instance
+const firebaseAdmin = {
+  auth: () => auth,
+  firestore: () => firestore,
+  storage: () => storage
+};
+
 export default firebaseAdmin; 

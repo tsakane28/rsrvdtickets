@@ -3,7 +3,6 @@ import { useRouter } from 'next/router';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebase';
 import Head from 'next/head';
-import ReCAPTCHA from 'react-google-recaptcha';
 import crypto from 'crypto';
 
 /**
@@ -19,7 +18,6 @@ export default function VerifyTicket() {
   const [attendee, setAttendee] = useState(null);
   const [event, setEvent] = useState(null);
   const [error, setError] = useState(null);
-  const [captchaValue, setCaptchaValue] = useState(null);
 
   useEffect(() => {
     const verifyTicket = async () => {
@@ -124,10 +122,6 @@ export default function VerifyTicket() {
   const getPaymentStatus = () => {
     if (!attendee?.paymentInfo) return "Unknown";
     return attendee.paymentInfo.paid ? "Paid" : "Unpaid";
-  };
-
-  const handleCaptchaChange = (value) => {
-    setCaptchaValue(value);
   };
 
   return (

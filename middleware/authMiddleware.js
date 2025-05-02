@@ -1,5 +1,4 @@
 import { auth } from '../utils/firebase-admin';
-import { getToken } from 'next-auth/jwt';
 
 /**
  * Middleware to verify authentication for protected API routes
