@@ -5,76 +5,32 @@ import { HiMail } from "react-icons/hi";
 import { AiTwotoneLock } from "react-icons/ai";
 import { useRouter } from "next/router";
 import { firebaseLoginUser } from "../utils/util";
-import Captcha from '../components/Captcha';
+import PuzzleCaptcha from '../components/PuzzleCaptcha';
 
 const login = () => {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
-	const [captchaValue, setCaptchaValue] = useState('');
+	const [captchaVerified, setCaptchaVerified] = useState(false);
 	const router = useRouter();
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 
-	const isFormValid = email && password && captchaValue;
+	const isFormValid = email && password && captchaVerified;
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		setError(null);
 		
 		if (!isFormValid) {
-			setError('Please fill all required fields including the CAPTCHA');
+			setError('Please fill all required fields and complete the CAPTCHA');
 			return;
 		}
 
 		try {
 			setLoading(true);
 			
-			// Determine which CAPTCHA verification to use
-			const isAltCaptcha = typeof captchaValue === 'object' && captchaValue.isAlt;
-			let captchaVerified = false;
-			
-			if (isAltCaptcha) {
-				// Use token-based verification
-				const verifyCaptchaRes = await fetch('/api/verify-alt-captcha', {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({
-						captcha: captchaValue.captcha,
-						token: captchaValue.token
-					})
-				});
-				
-				const captchaData = await verifyCaptchaRes.json();
-				captchaVerified = captchaData.success;
-				
-				if (!captchaVerified) {
-					setError(captchaData.message || 'CAPTCHA verification failed');
-					setLoading(false);
-					return;
-				}
-			} else {
-				// Use session-based verification
-				const verifyCaptchaRes = await fetch('/api/verify-captcha', {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({ captcha: captchaValue })
-				});
-				
-				const captchaData = await verifyCaptchaRes.json();
-				captchaVerified = captchaData.success;
-				
-				if (!captchaVerified) {
-					setError(captchaData.message || 'CAPTCHA verification failed');
-					setLoading(false);
-					return;
-				}
-			}
-			
-			// Use the existing firebaseLoginUser function
+			// Since CAPTCHA is already verified via the PuzzleCaptcha component,
+			// we can proceed directly with login
 			await firebaseLoginUser(email, password, router)
 				.catch(err => {
 					console.error("Login error:", err);
@@ -138,7 +94,7 @@ const login = () => {
 							<AiTwotoneLock className=' absolute left-4 top-3 text-gray-300 text-xl' />
 						</div>
 						<div className="mb-4">
-							<Captcha setCaptchaValue={setCaptchaValue} />
+							<PuzzleCaptcha onVerify={setCaptchaVerified} />
 						</div>
 						<button
 							type='submit'
