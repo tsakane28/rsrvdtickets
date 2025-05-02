@@ -102,8 +102,8 @@ const PuzzleCaptcha = ({ onVerify, onError }) => {
     
     try {
       // Simplify verification for demo - just check if the selected shape matches
-      const selectedOption = options[selectedOption];
-      const isCorrect = selectedOption && selectedOption.isCorrect;
+      const selectedItem = options[selectedOption];
+      const isCorrect = selectedItem && selectedItem.isCorrect;
       
       if (isCorrect) {
         setVerified(true);
