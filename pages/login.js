@@ -7,52 +7,59 @@ import { useRouter } from "next/router";
 import { firebaseLoginUser } from "../utils/util";
 import Captcha from '../components/Captcha';
 
-
 const login = () => {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [captchaValue, setCaptchaValue] = useState('');
 	const router = useRouter();
 	const [loading, setLoading] = useState(false);
-	const [errorMessage, setErrorMessage] = useState('');
+	const [error, setError] = useState(null);
 
 	const isFormValid = email && password && captchaValue;
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
+		setError(null);
 		
 		if (!isFormValid) {
+			setError('Please fill all required fields including the CAPTCHA');
 			return;
 		}
-		
-		setLoading(true);
-		
+
 		try {
-			// First verify the CAPTCHA
-			const captchaResponse = await fetch('/api/verify-captcha', {
+			setLoading(true);
+			
+			// First verify CAPTCHA
+			const verifyCaptchaRes = await fetch('/api/verify-captcha', {
 				method: 'POST',
 				headers: {
-					'Content-Type': 'application/json',
+					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({ captchaValue }),
+				body: JSON.stringify({ captcha: captchaValue })
 			});
 			
-			const captchaResult = await captchaResponse.json();
+			const captchaData = await verifyCaptchaRes.json();
 			
-			if (!captchaResult.success) {
+			if (!captchaData.success) {
+				setError(captchaData.message || 'CAPTCHA verification failed');
 				setLoading(false);
-				setErrorMessage('CAPTCHA verification failed. Please try again.');
 				return;
 			}
 			
-			// Continue with normal login flow
-			firebaseLoginUser(email, password, router);
+			// Use the existing firebaseLoginUser function
+			await firebaseLoginUser(email, password, router)
+				.catch(err => {
+					console.error("Login error:", err);
+					setError(err.message || 'Login failed');
+				});
+				
 		} catch (err) {
-			console.error(err);
+			setError(err.message || 'An error occurred');
+		} finally {
 			setLoading(false);
-			setErrorMessage('An error occurred during login');
 		}
 	};
+
 	return (
 		<div>
 			<Head>
@@ -73,6 +80,11 @@ const login = () => {
 						className='w-full flex flex-col justify-center'
 						onSubmit={handleSubmit}
 					>
+						{error && (
+							<div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+								<span className="block sm:inline">{error}</span>
+							</div>
+						)}
 						<label htmlFor='email'>Email address</label>
 						<div className='w-full relative'>
 							<input
@@ -98,11 +110,11 @@ const login = () => {
 							<AiTwotoneLock className=' absolute left-4 top-3 text-gray-300 text-xl' />
 						</div>
 						<div className="mb-4">
-							<Captcha onChange={setCaptchaValue} required={true} />
+							<Captcha setCaptchaValue={setCaptchaValue} />
 						</div>
 						<button
 							type='submit'
-							className='w-full py-3 bg-black text-white rounded-md hover:bg-gray-800'
+							className={`w-full py-3 bg-black text-white rounded-md hover:bg-gray-800 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
 							disabled={!isFormValid || loading}
 						>
 							{loading ? 'Logging in...' : 'Login'}
