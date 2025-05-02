@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styles from '../styles/PuzzleCaptcha.module.css';
 
-const PuzzleCaptcha = ({ onVerify }) => {
+const PuzzleCaptcha = ({ onVerify, onError }) => {
   const [loading, setLoading] = useState(true);
   const [puzzleData, setPuzzleData] = useState(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -14,6 +14,13 @@ const PuzzleCaptcha = ({ onVerify }) => {
   
   const puzzlePieceRef = useRef(null);
   const containerRef = useRef(null);
+  
+  // Report errors to parent component if provided
+  useEffect(() => {
+    if (error && onError) {
+      onError(error);
+    }
+  }, [error, onError]);
   
   // Load puzzle on component mount
   useEffect(() => {
@@ -28,6 +35,7 @@ const PuzzleCaptcha = ({ onVerify }) => {
       setIsVerified(false);
       
       const timestamp = Date.now();
+      console.log('Loading puzzle CAPTCHA...');
       const response = await fetch(`/api/puzzle-captcha/generate?t=${timestamp}`);
       
       if (!response.ok) {
@@ -50,7 +58,8 @@ const PuzzleCaptcha = ({ onVerify }) => {
       
     } catch (err) {
       console.error('Failed to load CAPTCHA puzzle:', err);
-      setError(`Failed to load CAPTCHA: ${err.message}. Retry ${retryCount+1}/3`);
+      const errorMessage = `Failed to load CAPTCHA: ${err.message}. Retry ${retryCount+1}/3`;
+      setError(errorMessage);
       
       // Retry loading up to 3 times with increasing delays
       if (retryCount < 3) {
@@ -59,7 +68,9 @@ const PuzzleCaptcha = ({ onVerify }) => {
           loadPuzzle();
         }, 1000 * (retryCount + 1)); // Progressive backoff
       } else {
-        setError('Unable to load CAPTCHA. Please reload the page or try again later.');
+        const finalError = 'Unable to load CAPTCHA. Please reload the page or try again later.';
+        setError(finalError);
+        if (onError) onError(finalError);
       }
     } finally {
       setLoading(false);
@@ -169,15 +180,21 @@ const PuzzleCaptcha = ({ onVerify }) => {
       
       if (data.success) {
         setIsVerified(true);
-        onVerify(true);
+        setError(null);
+        if (onError) onError(null);
+        if (onVerify) onVerify(true);
       } else {
-        setError(data.message || 'Verification failed');
+        const errorMsg = data.message || 'Verification failed';
+        setError(errorMsg);
+        if (onError) onError(errorMsg);
         loadPuzzle(); // Load a new puzzle if verification fails
       }
       
     } catch (err) {
       console.error('Verification error:', err);
-      setError('Failed to verify puzzle solution. Please try again.');
+      const errorMsg = 'Failed to verify puzzle solution. Please try again.';
+      setError(errorMsg);
+      if (onError) onError(errorMsg);
       // Reload the puzzle after a brief delay
       setTimeout(loadPuzzle, 1500);
     } finally {
@@ -210,7 +227,10 @@ const PuzzleCaptcha = ({ onVerify }) => {
         <button 
           type="button" 
           className={styles.refreshButton}
-          onClick={loadPuzzle}
+          onClick={() => {
+            setRetryCount(0);
+            loadPuzzle();
+          }}
           disabled={loading}
         >
           ↻
@@ -247,7 +267,9 @@ const PuzzleCaptcha = ({ onVerify }) => {
                   className={styles.puzzleImage}
                   onError={(e) => {
                     console.error('Background image failed to load:', e);
-                    setError('Failed to load puzzle images');
+                    const errorMsg = 'Failed to load puzzle images';
+                    setError(errorMsg);
+                    if (onError) onError(errorMsg);
                   }}
                 />
               )}

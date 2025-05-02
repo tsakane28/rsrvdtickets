@@ -1,7 +1,5 @@
 import { ticketRateLimiter } from '../../../middleware/rateLimit';
 import crypto from 'crypto';
-import path from 'path';
-import fs from 'fs';
 
 // Secret key for CAPTCHA token encryption
 const CAPTCHA_SECRET = process.env.SESSION_SECRET || '8c14a5c7bc4dc7b624df94f93effa546';
@@ -33,6 +31,17 @@ const PUZZLES = [
 
 // Server-side puzzle generation
 const handler = async (req, res) => {
+  // Add CORS headers for API requests
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Special handling for OPTIONS requests (preflight)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   if (req.method !== 'GET') {
     return res.status(405).json({
       success: false,
@@ -47,6 +56,8 @@ const handler = async (req, res) => {
     
     // Create a unique token for verification
     const token = generatePuzzleToken(puzzleIndex, puzzle.targetPosition);
+    
+    console.log('Generating puzzle CAPTCHA, index:', puzzleIndex);
     
     // Return the puzzle challenge data
     return res.status(200).json({
@@ -99,4 +110,5 @@ function generatePuzzleToken(puzzleIndex, targetPosition) {
   }
 }
 
+// Apply rate limiting to the handler
 export default ticketRateLimiter(handler); 

@@ -11,18 +11,39 @@ const login = () => {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [captchaVerified, setCaptchaVerified] = useState(false);
+	const [captchaError, setCaptchaError] = useState(null);
 	const router = useRouter();
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 
 	const isFormValid = email && password && captchaVerified;
 
+	// Handle CAPTCHA verification result
+	const handleCaptchaVerify = (isVerified) => {
+		console.log('CAPTCHA verification result:', isVerified);
+		setCaptchaVerified(isVerified);
+		if (isVerified) {
+			setCaptchaError(null);
+		}
+	};
+
+	// Handle CAPTCHA error
+	const handleCaptchaError = (errorMessage) => {
+		console.error('CAPTCHA error:', errorMessage);
+		setCaptchaError(errorMessage);
+		setCaptchaVerified(false);
+	};
+
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		setError(null);
 		
 		if (!isFormValid) {
-			setError('Please fill all required fields and complete the CAPTCHA');
+			if (!captchaVerified) {
+				setError('Please complete the CAPTCHA verification');
+			} else {
+				setError('Please fill all required fields and complete the CAPTCHA');
+			}
 			return;
 		}
 
@@ -69,6 +90,11 @@ const login = () => {
 								<span className="block sm:inline">{error}</span>
 							</div>
 						)}
+						{captchaError && (
+							<div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4" role="alert">
+								<span className="block sm:inline">CAPTCHA Error: {captchaError}</span>
+							</div>
+						)}
 						<label htmlFor='email'>Email address</label>
 						<div className='w-full relative'>
 							<input
@@ -94,7 +120,10 @@ const login = () => {
 							<AiTwotoneLock className=' absolute left-4 top-3 text-gray-300 text-xl' />
 						</div>
 						<div className="mb-4">
-							<PuzzleCaptcha onVerify={setCaptchaVerified} />
+							<PuzzleCaptcha 
+								onVerify={handleCaptchaVerify} 
+								onError={handleCaptchaError} 
+							/>
 						</div>
 						<button
 							type='submit'
