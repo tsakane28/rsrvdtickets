@@ -29,21 +29,49 @@ const login = () => {
 		try {
 			setLoading(true);
 			
-			// First verify CAPTCHA
-			const verifyCaptchaRes = await fetch('/api/verify-captcha', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ captcha: captchaValue })
-			});
+			// Determine which CAPTCHA verification to use
+			const isAltCaptcha = typeof captchaValue === 'object' && captchaValue.isAlt;
+			let captchaVerified = false;
 			
-			const captchaData = await verifyCaptchaRes.json();
-			
-			if (!captchaData.success) {
-				setError(captchaData.message || 'CAPTCHA verification failed');
-				setLoading(false);
-				return;
+			if (isAltCaptcha) {
+				// Use token-based verification
+				const verifyCaptchaRes = await fetch('/api/verify-alt-captcha', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						captcha: captchaValue.captcha,
+						token: captchaValue.token
+					})
+				});
+				
+				const captchaData = await verifyCaptchaRes.json();
+				captchaVerified = captchaData.success;
+				
+				if (!captchaVerified) {
+					setError(captchaData.message || 'CAPTCHA verification failed');
+					setLoading(false);
+					return;
+				}
+			} else {
+				// Use session-based verification
+				const verifyCaptchaRes = await fetch('/api/verify-captcha', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({ captcha: captchaValue })
+				});
+				
+				const captchaData = await verifyCaptchaRes.json();
+				captchaVerified = captchaData.success;
+				
+				if (!captchaVerified) {
+					setError(captchaData.message || 'CAPTCHA verification failed');
+					setLoading(false);
+					return;
+				}
 			}
 			
 			// Use the existing firebaseLoginUser function
