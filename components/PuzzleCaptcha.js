@@ -1,306 +1,266 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styles from '../styles/PuzzleCaptcha.module.css';
 
+const SHAPES = ['circle', 'square', 'triangle', 'diamond'];
+const COLORS = ['#6e8efb', '#a777e3', '#ff7c7c', '#ffa94d', '#74c0fc', '#63e6be', '#b197fc'];
+
 const PuzzleCaptcha = ({ onVerify, onError }) => {
   const [loading, setLoading] = useState(true);
-  const [puzzleData, setPuzzleData] = useState(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
-  const [isVerified, setIsVerified] = useState(false);
   const [error, setError] = useState(null);
-  const [attempts, setAttempts] = useState(0);
-  const [retryCount, setRetryCount] = useState(0);
+  const [token, setToken] = useState(null);
+  const [targetShape, setTargetShape] = useState(null);
+  const [options, setOptions] = useState([]);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [verified, setVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [retries, setRetries] = useState(0);
   
-  const puzzlePieceRef = useRef(null);
-  const containerRef = useRef(null);
+  const generateCaptcha = async () => {
+    setLoading(true);
+    setError(null);
+    setToken(null);
+    setTargetShape(null);
+    setOptions([]);
+    setSelectedOption(null);
+    setVerified(false);
+
+    try {
+      // Generate a random shape and color for the target
+      const targetShapeType = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+      const targetColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+      
+      // Create random options including the correct one
+      const correctIndex = Math.floor(Math.random() * 4);
+      const newOptions = [];
+      
+      for (let i = 0; i < 4; i++) {
+        if (i === correctIndex) {
+          newOptions.push({
+            shape: targetShapeType,
+            color: targetColor,
+            isCorrect: true
+          });
+        } else {
+          // Generate a different shape or color for incorrect options
+          let shape = targetShapeType;
+          let color = targetColor;
+          
+          // Either change the shape or the color to make it different
+          if (Math.random() > 0.5) {
+            // Change shape
+            let newShape;
+            do {
+              newShape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+            } while (newShape === targetShapeType);
+            shape = newShape;
+          } else {
+            // Change color
+            let newColor;
+            do {
+              newColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+            } while (newColor === targetColor);
+            color = newColor;
+          }
+          
+          newOptions.push({
+            shape,
+            color,
+            isCorrect: false
+          });
+        }
+      }
+      
+      // Create a token containing the correct index (this would normally be encrypted)
+      const tokenData = {
+        correctIndex,
+        timestamp: Date.now(),
+        // In a real implementation, add a secret signature
+      };
+      
+      // In a real implementation, this token would be encrypted
+      const newToken = btoa(JSON.stringify(tokenData));
+      
+      setTargetShape({ shape: targetShapeType, color: targetColor });
+      setOptions(newOptions);
+      setToken(newToken);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error generating CAPTCHA:', err);
+      setError('Failed to generate CAPTCHA. Please try again.');
+      setLoading(false);
+      
+      if (onError) {
+        onError(err);
+      }
+    }
+  };
   
-  // Report errors to parent component if provided
+  const handleSelectOption = (index) => {
+    if (verifying || verified) return;
+    setSelectedOption(index);
+  };
+  
+  const handleVerify = async () => {
+    if (selectedOption === null || verifying || verified) return;
+    
+    setVerifying(true);
+    
+    try {
+      // In a real implementation, this would be verified on the server
+      const tokenData = JSON.parse(atob(token));
+      const isCorrect = selectedOption === tokenData.correctIndex;
+      
+      if (isCorrect) {
+        // Verify on the server
+        const response = await fetch('/api/shape-captcha/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ token }),
+          credentials: 'include',
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          setVerified(true);
+          if (onVerify) {
+            onVerify(token);
+          }
+        } else {
+          throw new Error(data.message || 'Verification failed');
+        }
+      } else {
+        setError('Incorrect selection. Please try again.');
+        generateCaptcha();
+      }
+    } catch (err) {
+      console.error('Error verifying CAPTCHA:', err);
+      setError('Failed to verify CAPTCHA. Please try again.');
+      
+      if (onError) {
+        onError(err);
+      }
+    } finally {
+      setVerifying(false);
+    }
+  };
+  
+  const handleRetry = () => {
+    setRetries(retries + 1);
+    generateCaptcha();
+  };
+  
+  // Initialize on mount
+  useEffect(() => {
+    generateCaptcha();
+  }, []);
+  
+  // Report errors to parent
   useEffect(() => {
     if (error && onError) {
-      onError(error);
+      onError(new Error(error));
     }
   }, [error, onError]);
   
-  // Load puzzle on component mount
-  useEffect(() => {
-    loadPuzzle();
-  }, []);
+  if (loading) {
+    return (
+      <div className={styles.captchaContainer}>
+        <div className={styles.captchaHeader}>
+          <h3 className={styles.captchaTitle}>Security Check</h3>
+        </div>
+        <div className={styles.loading}>
+          <div className={styles.spinner}></div>
+          <p>Loading security check...</p>
+        </div>
+      </div>
+    );
+  }
   
-  // Load a new puzzle challenge
-  const loadPuzzle = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setIsVerified(false);
-      
-      const timestamp = Date.now();
-      console.log('Loading puzzle CAPTCHA...');
-      const response = await fetch(`/api/puzzle-captcha/generate?t=${timestamp}`);
-      
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error('Puzzle loading error:', response.status, errorData);
-        throw new Error(`Server error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to generate puzzle');
-      }
-      
-      console.log('Puzzle loaded successfully');
-      setPuzzleData(data);
-      // Reset piece position to starting position
-      setPosition({ x: 0, y: 0 });
-      setAttempts(0);
-      
-    } catch (err) {
-      console.error('Failed to load CAPTCHA puzzle:', err);
-      const errorMessage = `Failed to load CAPTCHA: ${err.message}. Retry ${retryCount+1}/3`;
-      setError(errorMessage);
-      
-      // Retry loading up to 3 times with increasing delays
-      if (retryCount < 3) {
-        setTimeout(() => {
-          setRetryCount(retryCount + 1);
-          loadPuzzle();
-        }, 1000 * (retryCount + 1)); // Progressive backoff
-      } else {
-        const finalError = 'Unable to load CAPTCHA. Please reload the page or try again later.';
-        setError(finalError);
-        if (onError) onError(finalError);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Handle mouse/touch down to start dragging
-  const handleStart = (e) => {
-    if (isVerified) return;
-    
-    // Prevent default behavior
-    e.preventDefault();
-    
-    const clientX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
-    
-    setIsDragging(true);
-    setStartPos({
-      x: clientX - position.x,
-      y: clientY - position.y
-    });
-  };
-  
-  // Handle mouse/touch move while dragging
-  const handleMove = (e) => {
-    if (!isDragging || isVerified) return;
-    
-    // Get position from mouse or touch
-    const clientX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
-    
-    // Calculate new position
-    const newX = clientX - startPos.x;
-    const newY = clientY - startPos.y;
-    
-    // Get container bounds
-    const containerRect = containerRef.current?.getBoundingClientRect() || { width: 300, height: 160 };
-    const pieceRect = puzzlePieceRef.current?.getBoundingClientRect() || { width: 48, height: 48 };
-    
-    // Ensure the piece stays within the container
-    const maxX = containerRect.width - pieceRect.width;
-    const maxY = containerRect.height - pieceRect.height;
-    
-    // Update position with constraints
-    setPosition({
-      x: Math.max(0, Math.min(newX, maxX)),
-      y: Math.max(0, Math.min(newY, maxY))
-    });
-  };
-  
-  // Handle mouse/touch up to end dragging
-  const handleEnd = () => {
-    if (!isDragging || isVerified) return;
-    
-    setIsDragging(false);
-    
-    // Verify if the piece is in the correct position
-    if (puzzleData && puzzleData.targetArea) {
-      const { x, y } = position;
-      const { x: targetX, y: targetY, tolerance } = puzzleData.targetArea;
-      
-      const isCorrect = 
-        Math.abs(x - targetX) <= tolerance && 
-        Math.abs(y - targetY) <= tolerance;
-      
-      if (isCorrect) {
-        verifyPuzzle();
-      } else {
-        // Increment attempts counter
-        setAttempts(attempts + 1);
-        
-        // After 3 failed attempts, reset the puzzle
-        if (attempts >= 2) {
-          loadPuzzle();
-        }
-      }
-    }
-  };
-  
-  // Send verification to the server
-  const verifyPuzzle = async () => {
-    try {
-      if (!puzzleData || !puzzleData.token) {
-        throw new Error('Invalid puzzle data');
-      }
-      
-      setLoading(true);
-      
-      const response = await fetch('/api/puzzle-captcha/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          token: puzzleData.token,
-          position: position
-        })
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Verification error:', response.status, errorText);
-        throw new Error(`Server verification error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setIsVerified(true);
-        setError(null);
-        if (onError) onError(null);
-        if (onVerify) onVerify(true);
-      } else {
-        const errorMsg = data.message || 'Verification failed';
-        setError(errorMsg);
-        if (onError) onError(errorMsg);
-        loadPuzzle(); // Load a new puzzle if verification fails
-      }
-      
-    } catch (err) {
-      console.error('Verification error:', err);
-      const errorMsg = 'Failed to verify puzzle solution. Please try again.';
-      setError(errorMsg);
-      if (onError) onError(errorMsg);
-      // Reload the puzzle after a brief delay
-      setTimeout(loadPuzzle, 1500);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Add global mouse/touch event listeners when dragging
-  useEffect(() => {
-    if (isDragging) {
-      // Use document for mouse events to capture movement outside the component
-      document.addEventListener('mousemove', handleMove);
-      document.addEventListener('mouseup', handleEnd);
-      document.addEventListener('touchmove', handleMove);
-      document.addEventListener('touchend', handleEnd);
-    }
-    
-    return () => {
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleEnd);
-      document.removeEventListener('touchmove', handleMove);
-      document.removeEventListener('touchend', handleEnd);
-    };
-  }, [isDragging, position, startPos]);
+  if (error && !targetShape) {
+    return (
+      <div className={styles.captchaContainer}>
+        <div className={styles.captchaHeader}>
+          <h3 className={styles.captchaTitle}>Security Check</h3>
+        </div>
+        <div className={styles.error}>
+          <p>{error}</p>
+          <button className={styles.retryButton} onClick={handleRetry}>
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
   
   return (
-    <div className={styles.puzzleCaptchaContainer}>
-      <div className={styles.puzzleHeader}>
-        <h3 className={styles.puzzleTitle}>Verify you're human</h3>
+    <div className={styles.captchaContainer}>
+      <div className={styles.captchaHeader}>
+        <h3 className={styles.captchaTitle}>Security Check</h3>
         <button 
-          type="button" 
-          className={styles.refreshButton}
-          onClick={() => {
-            setRetryCount(0);
-            loadPuzzle();
-          }}
-          disabled={loading}
+          className={styles.refreshButton} 
+          onClick={generateCaptcha}
+          disabled={verifying || loading}
+          aria-label="Refresh CAPTCHA"
         >
           ↻
         </button>
       </div>
       
-      <div 
-        ref={containerRef}
-        className={styles.puzzleContainer}
-      >
-        {loading ? (
-          <div className={styles.loading}>Loading puzzle...</div>
-        ) : error ? (
-          <div className={styles.error}>
-            {error}
-            <button 
-              className={styles.retryButton} 
-              onClick={() => {
-                setRetryCount(0);
-                loadPuzzle();
-              }}
-            >
-              Try again
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Background puzzle image with hole */}
-            <div className={styles.puzzleBackground}>
-              {puzzleData && puzzleData.backgroundImage && (
-                <img 
-                  src={puzzleData.backgroundImage} 
-                  alt="Puzzle background" 
-                  className={styles.puzzleImage}
-                  onError={(e) => {
-                    console.error('Background image failed to load:', e);
-                    const errorMsg = 'Failed to load puzzle images';
-                    setError(errorMsg);
-                    if (onError) onError(errorMsg);
-                  }}
-                />
-              )}
-            </div>
-            
-            {/* Draggable puzzle piece */}
-            {puzzleData && puzzleData.pieceImage && (
+      <div className={styles.captchaBody}>
+        <div className={styles.captchaQuestion}>
+          <p>Select the shape that matches this one:</p>
+          <div className={styles.targetShape}>
+            {targetShape && (
               <div 
-                ref={puzzlePieceRef}
-                className={`${styles.puzzlePiece} ${isVerified ? styles.verified : ''} ${isDragging ? styles.dragging : ''}`}
-                style={{ 
-                  transform: `translate(${position.x}px, ${position.y}px)`,
-                  backgroundImage: `url(${puzzleData.pieceImage})`,
+                className={styles.shapeSilhouette} 
+                style={{
+                  backgroundColor: targetShape.color
                 }}
-                onMouseDown={handleStart}
-                onTouchStart={handleStart}
+                data-shape={targetShape.shape}
               />
             )}
-          </>
-        )}
+          </div>
+        </div>
+        
+        <div className={styles.shapeOptions}>
+          {options.map((option, index) => (
+            <button
+              key={index}
+              className={`${styles.shapeOption} ${selectedOption === index ? styles.selected : ''}`}
+              onClick={() => handleSelectOption(index)}
+              disabled={verifying || verified}
+              aria-label={`Shape option ${index + 1}`}
+            >
+              <div 
+                className={styles.shape} 
+                style={{
+                  backgroundColor: option.color
+                }}
+                data-shape={option.shape}
+              />
+            </button>
+          ))}
+        </div>
+        
+        <button
+          className={styles.verifyButton}
+          onClick={handleVerify}
+          disabled={selectedOption === null || verifying || verified}
+        >
+          {verifying ? 'Verifying...' : verified ? 'Verified' : 'Verify'}
+        </button>
       </div>
       
-      <div className={styles.puzzleFooter}>
-        {isVerified ? (
-          <div className={styles.verifiedMessage}>✓ Verified</div>
-        ) : (
-          <div className={styles.instructions}>
-            Drag the puzzle piece to fit in the image
-          </div>
-        )}
-      </div>
+      {verified && (
+        <div className={styles.successMessage}>
+          <svg className={styles.checkIcon} viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+          </svg>
+          <span>Verification successful</span>
+        </div>
+      )}
     </div>
   );
 };

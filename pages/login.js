@@ -7,7 +7,7 @@ import { useRouter } from "next/router";
 import { firebaseLoginUser } from "../utils/util";
 import PuzzleCaptcha from '../components/PuzzleCaptcha';
 
-const login = () => {
+const Login = () => {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [captchaVerified, setCaptchaVerified] = useState(false);
@@ -18,40 +18,33 @@ const login = () => {
 
 	const isFormValid = email && password && captchaVerified;
 
-	// Handle CAPTCHA verification result
-	const handleCaptchaVerify = (isVerified) => {
-		console.log('CAPTCHA verification result:', isVerified);
-		setCaptchaVerified(isVerified);
-		if (isVerified) {
-			setCaptchaError(null);
-		}
+	const handleCaptchaVerify = (token) => {
+		setCaptchaVerified(true);
+		setCaptchaError(null);
 	};
 
-	// Handle CAPTCHA error
-	const handleCaptchaError = (errorMessage) => {
-		console.error('CAPTCHA error:', errorMessage);
-		setCaptchaError(errorMessage);
-		setCaptchaVerified(false);
+	const handleCaptchaError = (error) => {
+		console.error('CAPTCHA error:', error);
+		setCaptchaError(error.message || 'CAPTCHA verification failed');
 	};
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
-		setError(null);
+		setError('');
 		
-		if (!isFormValid) {
-			if (!captchaVerified) {
-				setError('Please complete the CAPTCHA verification');
-			} else {
-				setError('Please fill all required fields and complete the CAPTCHA');
-			}
+		if (!email || !password) {
+			setError('Please enter both email and password');
 			return;
 		}
-
+		
+		if (!captchaVerified) {
+			setError('Please complete the security check');
+			return;
+		}
+		
 		try {
 			setLoading(true);
 			
-			// Since CAPTCHA is already verified via the PuzzleCaptcha component,
-			// we can proceed directly with login
 			await firebaseLoginUser(email, password, router)
 				.catch(err => {
 					console.error("Login error:", err);
@@ -122,8 +115,11 @@ const login = () => {
 						<div className="mb-4">
 							<PuzzleCaptcha 
 								onVerify={handleCaptchaVerify} 
-								onError={handleCaptchaError} 
+								onError={handleCaptchaError}
 							/>
+							{captchaError && (
+								<p className="text-red-500 text-sm mt-1">{captchaError}</p>
+							)}
 						</div>
 						<button
 							type='submit'
@@ -162,4 +158,4 @@ const login = () => {
 	);
 };
 
-export default login;
+export default Login;
