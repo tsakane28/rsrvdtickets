@@ -100,7 +100,7 @@ export default function VerifyTicket() {
       
       <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
         <div className="flex justify-center mb-4">
-          <img src="/logo.png" alt="RSRVD Logo" className="h-12" />
+          <h1 className="text-2xl font-bold text-center mb-6">RSRVD</h1>
         </div>
         
         <h1 className="text-2xl font-bold text-center mb-6">Ticket Verification</h1>
