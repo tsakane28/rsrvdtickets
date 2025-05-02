@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebase';
 import Head from 'next/head';
+import crypto from 'crypto';
 
 /**
  * Ticket verification page - displays when a QR code is scanned
@@ -24,6 +25,38 @@ export default function VerifyTicket() {
       
       try {
         setLoading(true);
+        
+        // Verify signature first
+        const { sig, ts } = router.query;
+        if (!sig || !ts) {
+          setError("Invalid ticket: missing signature");
+          setLoading(false);
+          return;
+        }
+        
+        // Check if timestamp is valid (not too old)
+        const now = Date.now();
+        const ticketTime = parseInt(ts, 10);
+        const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+        
+        if (isNaN(ticketTime) || (now - ticketTime) > MAX_AGE) {
+          setError("Ticket expired or invalid timestamp");
+          setLoading(false);
+          return;
+        }
+        
+        // Verify signature
+        const dataToVerify = `${ticketId}:${eventId || ''}:${ts}`;
+        const expectedSig = crypto
+          .createHmac('sha256', process.env.QR_SIGNATURE_KEY)
+          .update(dataToVerify)
+          .digest('hex');
+          
+        if (sig !== expectedSig) {
+          setError("Invalid ticket signature");
+          setLoading(false);
+          return;
+        }
         
         // If we have a specific eventId, check that event directly
         if (eventId) {
@@ -84,7 +117,7 @@ export default function VerifyTicket() {
     };
 
     verifyTicket();
-  }, [ticketId, eventId]);
+  }, [ticketId, eventId, router.query]);
 
   const getPaymentStatus = () => {
     if (!attendee?.paymentInfo) return "Unknown";
@@ -96,6 +129,20 @@ export default function VerifyTicket() {
       <Head>
         <title>RSRVD - Ticket Verification</title>
         <meta name="description" content="Verify ticket authenticity" />
+        {/* CSP Header */}
+        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.google.com/recaptcha/; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.firebaseio.com;" />
+        
+        {/* Prevent XSS */}
+        <meta httpEquiv="X-XSS-Protection" content="1; mode=block" />
+        
+        {/* Prevent clickjacking */}
+        <meta httpEquiv="X-Frame-Options" content="DENY" />
+        
+        {/* Prevent MIME type sniffing */}
+        <meta httpEquiv="X-Content-Type-Options" content="nosniff" />
+        
+        {/* Referrer Policy */}
+        <meta httpEquiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
       </Head>
       
       <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
@@ -186,4 +233,4 @@ export default function VerifyTicket() {
       </div>
     </div>
   );
-} 
+}
