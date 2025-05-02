@@ -1,8 +1,19 @@
 import { db } from '../../utils/firebase';
 import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { registerAttendee } from '../../utils/util';
+import { withAuthOrApiKey } from '../../middleware/authMiddleware';
+import { paymentRateLimiter } from '../../middleware/rateLimit';
+import { validateRequest } from '../../middleware/validateRequest';
+import Joi from 'joi';
 
-export default async function handler(req, res) {
+// Validation schema for payment fixing
+const fixPaymentSchema = Joi.object({
+  reference: Joi.string().required().trim(),
+  markAsPaid: Joi.boolean().default(true)
+});
+
+// Main handler logic
+const handler = async (req, res) => {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
@@ -11,14 +22,8 @@ export default async function handler(req, res) {
   try {
     const { reference, markAsPaid = true } = req.body;
 
-    if (!reference) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Payment reference is required' 
-      });
-    }
-
     console.log(`Attempting to fix payment with reference: ${reference}`);
+    console.log(`Requested by user: ${req.user?.email || 'API key'}`);
 
     // Find the payment in Firestore
     const paymentsRef = collection(db, 'payments');
@@ -52,7 +57,8 @@ export default async function handler(req, res) {
       await updateDoc(paymentDoc.ref, {
         status: 'paid',
         updatedAt: new Date().toISOString(),
-        manuallyVerified: true
+        manuallyVerified: true,
+        verifiedBy: req.user?.email || 'admin-api'
       });
 
       console.log(`Updated payment status to paid`);
@@ -132,4 +138,11 @@ export default async function handler(req, res) {
       error: error.message
     });
   }
-} 
+};
+
+// Apply middlewares
+export default paymentRateLimiter(
+  withAuthOrApiKey(
+    validateRequest(fixPaymentSchema)(handler)
+  )
+); 

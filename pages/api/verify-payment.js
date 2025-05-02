@@ -4,8 +4,19 @@
 import { db } from "../../utils/firebase";
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { registerAttendee } from "../../utils/util";
+import { withAuthOrApiKey } from '../../middleware/authMiddleware';
+import { paymentRateLimiter } from '../../middleware/rateLimit';
+import { validateRequest } from '../../middleware/validateRequest';
+import Joi from 'joi';
 
-export default async function handler(req, res) {
+// Validation schema for payment verification
+const verifyPaymentSchema = Joi.object({
+  reference: Joi.string().required().trim(),
+  markAsPaid: Joi.boolean().default(false)
+});
+
+// Main handler logic
+const handler = async (req, res) => {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
@@ -13,6 +24,10 @@ export default async function handler(req, res) {
 
   try {
     const { reference, markAsPaid = false } = req.body;
+
+    // Log the verification attempt with the user who made it
+    console.log(`Verifying payment with reference: ${reference}`);
+    console.log(`Requested by: ${req.user?.email || 'API key'}`);
 
     if (!reference) {
       return res.status(400).json({ 
@@ -22,8 +37,9 @@ export default async function handler(req, res) {
     }
 
     // Find the payment in Firestore
-    const paymentsRef = db.collection('payments');
-    const paymentQuery = await paymentsRef.where('reference', '==', reference).get();
+    const paymentsRef = collection(db, 'payments');
+    const q = query(paymentsRef, where('reference', '==', reference));
+    const paymentQuery = await getDocs(q);
 
     if (paymentQuery.empty) {
       return res.status(404).json({ 
@@ -46,9 +62,18 @@ export default async function handler(req, res) {
 
     // If markAsPaid flag is true, update the payment status
     if (markAsPaid) {
-      await paymentDoc.ref.update({
+      // Require authentication for payment modification
+      if (!req.user && !req.headers['x-api-key']) {
+        return res.status(403).json({
+          success: false,
+          message: 'Authentication required to modify payment status'
+        });
+      }
+      
+      await updateDoc(paymentDoc.ref, {
         status: 'paid',
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        verifiedBy: req.user?.email || 'admin-api'
       });
 
       // If there's an eventId and customerEmail, register the attendee
@@ -113,7 +138,12 @@ export default async function handler(req, res) {
     return res.status(500).json({ 
       success: false, 
       message: 'Internal server error',
-      error: error.message
+      error: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
   }
-} 
+};
+
+// Apply middlewares
+export default paymentRateLimiter(
+  validateRequest(verifyPaymentSchema)(handler)
+); 

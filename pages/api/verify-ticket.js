@@ -1,34 +1,75 @@
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebase';
+import { ticketRateLimiter } from '../../middleware/rateLimit';
+import { validateRequest } from '../../middleware/validateRequest';
+import Joi from 'joi';
+import crypto from 'crypto';
 
 /**
  * API endpoint for ticket verification
  * Can be used by external systems to verify tickets
  */
-export default async function handler(req, res) {
+
+// Validation schema for ticket verification
+const verifyTicketSchema = Joi.object({
+  ticketId: Joi.string().required().trim(),
+  eventId: Joi.string().optional().trim(),
+  signature: Joi.string().required(),
+  timestamp: Joi.number().required()
+});
+
+// Middleware chain - rate limit first, then validate request
+const handler = async (req, res) => {
   // Only allow POST requests
   if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, message: 'Method not allowed' });
+    return res.status(405).json({ 
+      success: false, 
+      message: 'Method not allowed' 
+    });
   }
-
+  
   try {
-    const { ticketId, eventId } = req.body;
-
-    // Validate required parameters
-    if (!ticketId) {
-      return res.status(400).json({ success: false, message: 'Ticket ID is required' });
+    const { ticketId, eventId, signature, timestamp } = req.body;
+    
+    // Validate timestamp (prevent replay attacks)
+    const now = Date.now();
+    const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+    
+    if (isNaN(timestamp) || (now - timestamp) > MAX_AGE) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ticket expired or invalid timestamp'
+      });
     }
-
-    let verified = false;
+    
+    // Verify signature using server-side secret
+    const dataToVerify = `${ticketId}:${eventId || ''}:${timestamp}`;
+    const expectedSig = crypto
+      .createHmac('sha256', process.env.QR_SIGNATURE_KEY)
+      .update(dataToVerify)
+      .digest('hex');
+      
+    if (signature !== expectedSig) {
+      console.warn(`Invalid signature attempt for ticket ${ticketId}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid ticket signature'
+      });
+    }
+    
+    // If we made it here, signature is valid
     let attendee = null;
     let event = null;
-
-    // If eventId is provided, search in that specific event
+    
+    // If we have a specific eventId, check that event directly
     if (eventId) {
       const eventDoc = await getDoc(doc(db, "events", eventId));
       
       if (!eventDoc.exists()) {
-        return res.status(404).json({ success: false, message: 'Event not found' });
+        return res.status(404).json({
+          success: false,
+          message: 'Event not found'
+        });
       }
       
       const eventData = eventDoc.data();
@@ -37,20 +78,26 @@ export default async function handler(req, res) {
       );
       
       if (foundAttendee) {
-        verified = true;
         attendee = foundAttendee;
         event = {
-          id: eventId,
+          id: eventDoc.id,
           title: eventData.title,
           date: eventData.date,
           time: eventData.time,
-          venue: eventData.venue
+          venue: eventData.venue,
         };
+      } else {
+        return res.status(404).json({
+          success: false,
+          message: 'Ticket not found for this event'
+        });
       }
     } else {
-      // If no eventId, search in all events
+      // Search all events for the ticket
       const eventsCollection = collection(db, "events");
       const eventsSnapshot = await getDocs(eventsCollection);
+      
+      let ticketFound = false;
       
       for (const eventDoc of eventsSnapshot.docs) {
         const eventData = eventDoc.data();
@@ -59,39 +106,52 @@ export default async function handler(req, res) {
         );
         
         if (foundAttendee) {
-          verified = true;
           attendee = foundAttendee;
           event = {
             id: eventDoc.id,
             title: eventData.title,
             date: eventData.date,
             time: eventData.time,
-            venue: eventData.venue
+            venue: eventData.venue,
           };
+          ticketFound = true;
           break;
         }
       }
+      
+      if (!ticketFound) {
+        return res.status(404).json({
+          success: false,
+          message: 'Ticket not found in any event'
+        });
+      }
     }
-
-    if (!verified) {
-      return res.status(404).json({ success: false, message: 'Ticket not found' });
-    }
-
-    // Return verified ticket information
+    
+    // If we got here, the ticket is valid
     return res.status(200).json({
       success: true,
-      verified: true,
+      message: 'Ticket verified successfully',
       attendee: {
         name: attendee.name,
         email: attendee.email,
-        ticketId: attendee.passcode,
+        passcode: attendee.passcode,
         paymentStatus: attendee.paymentInfo?.paid ? 'Paid' : 'Unpaid'
       },
-      event: event
+      event
     });
-
+    
   } catch (error) {
     console.error('Error verifying ticket:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+    
+    // Return generic error to client
+    return res.status(500).json({
+      success: false,
+      message: 'An error occurred while verifying the ticket'
+    });
   }
-} 
+};
+
+// Apply middlewares
+export default ticketRateLimiter(
+  validateRequest(verifyTicketSchema)(handler)
+); 
