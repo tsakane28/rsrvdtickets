@@ -349,7 +349,7 @@ import {
 	  console.log("Registering for event_id:", event_id);
 	  
 	  const passcode = generateID();
-	  const qrCode = await generateQRCode(passcode);
+	  const qrCode = await generateQRCode(passcode, event_id);
 
 	  const eventRef = doc(db, "events", event_id);
 	  const eventSnap = await getDoc(eventRef);
