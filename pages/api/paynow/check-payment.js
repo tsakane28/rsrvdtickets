@@ -3,163 +3,244 @@ import { db } from "../../../utils/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { paymentId } = req.query;
-
+    // Get payment ID from query or body
+    const paymentId = req.method === 'GET' ? req.query.id : req.body.paymentId;
+    
     if (!paymentId) {
-      return res.status(400).json({ error: 'Payment ID is required' });
+      return res.status(400).json({ error: 'Missing payment ID' });
     }
-
-    console.log(`Checking payment status for payment ID: ${paymentId}`);
-
-    // Get the payment from Firestore
+    
+    // Get payment document from Firestore
     const paymentRef = doc(db, "payments", paymentId);
-    const paymentSnap = await getDoc(paymentRef);
-
-    if (!paymentSnap.exists()) {
+    const paymentDoc = await getDoc(paymentRef);
+    
+    if (!paymentDoc.exists()) {
       return res.status(404).json({ error: 'Payment not found' });
     }
-
-    const paymentData = paymentSnap.data();
+    
+    const paymentData = paymentDoc.data();
     const { pollUrl, status, reference, isTestMode } = paymentData;
-
-    // If the payment is already marked as paid or cancelled, return the current status
-    if (status === 'paid' || status === 'cancelled') {
+    
+    // If already paid, return success
+    if (status === 'paid') {
       return res.status(200).json({
         success: true,
-        status,
+        status: 'paid',
         reference,
-        paid: status === 'paid',
-        isTestMode
+        message: 'Payment has been completed'
       });
     }
-
-    // For test mode payments, handle according to test behavior
-    if (isTestMode && paymentData.testMode) {
-      const testBehavior = paymentData.testMode.testBehavior || 'immediate-success';
-      const initiatedAt = paymentData.testMode.initiatedAt?.toDate() || new Date(paymentData.createdAt);
-      const now = new Date();
-      const elapsedSeconds = (now - initiatedAt) / 1000;
-      
-      let newStatus = status;
-      let statusMessage = '';
-      
-      // Simulate different test behaviors
-      switch (testBehavior) {
-        case 'immediate-success':
-          newStatus = 'paid';
-          statusMessage = 'Test payment completed successfully';
-          break;
-        case 'delayed-success':
-          // Wait 30 seconds before marking as paid
-          if (elapsedSeconds > 30) {
-            newStatus = 'paid';
-            statusMessage = 'Test payment completed after delay';
-          } else {
-            newStatus = 'pending';
-            statusMessage = `Test payment pending (will complete in ${Math.ceil(30 - elapsedSeconds)} seconds)`;
-          }
-          break;
-        case 'user-cancelled':
-          // Wait 15 seconds before marking as cancelled
-          if (elapsedSeconds > 15) {
-            newStatus = 'cancelled';
-            statusMessage = 'Test payment cancelled by user';
-          } else {
-            newStatus = 'pending';
-            statusMessage = 'Test payment pending (will be cancelled by user)';
-          }
-          break;
-        case 'system-cancelled':
-          // Wait 15 seconds before marking as cancelled
-          if (elapsedSeconds > 15) {
-            newStatus = 'cancelled';
-            statusMessage = 'Test payment cancelled by system';
-          } else {
-            newStatus = 'pending';
-            statusMessage = 'Test payment pending (will be cancelled by system)';
-          }
-          break;
-        default:
-          newStatus = 'pending';
-          statusMessage = 'Test payment in unknown state';
-      }
-      
-      // Update the status if it has changed
-      if (newStatus !== status) {
-        await updateDoc(paymentRef, {
-          status: newStatus,
-          statusUpdatedAt: serverTimestamp(),
-          updatedByPolling: true,
-          statusMessage
+    
+    // If cancelled, return error
+    if (status === 'cancelled') {
+      return res.status(200).json({
+        success: false,
+        status: 'cancelled',
+        reference,
+        error: 'Payment was cancelled'
+      });
+    }
+    
+    // Handle test mode differently depending on environment
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // In production, always check with actual Paynow service
+    if (isProduction) {
+      // In production, we should have a pollUrl
+      if (!pollUrl) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing poll URL for payment status check'
         });
-        
-        console.log(`Updated test mode payment ${paymentId} with status: ${newStatus}`);
       }
       
+      try {
+        // Check status with Paynow
+        console.log(`Checking payment status with Paynow for ${paymentId}...`);
+        
+        // Create a new Paynow instance with credentials from environment variables
+        const integrationId = process.env.PAYNOW_INTEGRATION_ID || "20667";
+        const integrationKey = process.env.PAYNOW_INTEGRATION_KEY || "83c8858d-2244-4f0f-accd-b64e9f877eaa";
+        const paynow = new Paynow(integrationId, integrationKey);
+        
+        // Poll for transaction status
+        const statusResponse = await paynow.pollTransaction(pollUrl);
+        console.log(`Paynow status response for ${paymentId}:`, statusResponse);
+        
+        // Update payment status based on Paynow response
+        if (statusResponse.paid) {
+          // Payment completed successfully
+          await updateDoc(paymentRef, {
+            status: 'paid',
+            updatedAt: serverTimestamp(),
+            paynowStatus: statusResponse.status,
+            paynowPaid: statusResponse.paid,
+            lastChecked: serverTimestamp(),
+            lastResponse: statusResponse
+          });
+          
+          return res.status(200).json({
+            success: true,
+            status: 'paid',
+            reference,
+            message: 'Payment completed successfully'
+          });
+        } else if (statusResponse.status.toLowerCase() === 'cancelled') {
+          // Payment was cancelled
+          await updateDoc(paymentRef, {
+            status: 'cancelled',
+            updatedAt: serverTimestamp(),
+            paynowStatus: statusResponse.status,
+            paynowPaid: statusResponse.paid,
+            lastChecked: serverTimestamp(),
+            lastResponse: statusResponse
+          });
+          
+          return res.status(200).json({
+            success: false,
+            status: 'cancelled',
+            reference,
+            error: 'Payment was cancelled'
+          });
+        } else {
+          // Payment still pending
+          await updateDoc(paymentRef, {
+            lastChecked: serverTimestamp(),
+            paynowStatus: statusResponse.status,
+            paynowPaid: statusResponse.paid,
+            lastResponse: statusResponse
+          });
+          
+          return res.status(200).json({
+            success: true,
+            status: 'pending',
+            reference,
+            message: 'Payment is still pending'
+          });
+        }
+      } catch (error) {
+        console.error(`Error checking payment status with Paynow for ${paymentId}:`, error);
+        
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to check payment status'
+        });
+      }
+    } else {
+      // In development, handle test mode payments
+      if (isTestMode && paymentData.testMode) {
+        const testBehavior = paymentData.testMode.testBehavior || 'immediate-success';
+        const initiatedAt = paymentData.testMode.initiatedAt?.toDate() || new Date(paymentData.createdAt);
+        
+        // Current time
+        const now = new Date();
+        const timeDiff = now.getTime() - initiatedAt.getTime();
+        const secondsPassed = Math.floor(timeDiff / 1000);
+        
+        // Simulate different payment outcomes based on test behavior
+        if (testBehavior === 'immediate-success' || testBehavior === 'quick-success') {
+          // Success after 5 seconds
+          if (secondsPassed >= 5) {
+            // Update payment to success
+            await updateDoc(paymentRef, {
+              status: 'paid',
+              updatedAt: serverTimestamp(),
+              isTestMode: true,
+              testMode: true,
+              testModeResult: 'Simulated success after 5 seconds'
+            });
+            
+            return res.status(200).json({
+              success: true,
+              status: 'paid',
+              reference,
+              message: 'Test payment completed successfully'
+            });
+          }
+        } else if (testBehavior === 'delayed-success') {
+          // Success after 30 seconds
+          if (secondsPassed >= 30) {
+            await updateDoc(paymentRef, {
+              status: 'paid',
+              updatedAt: serverTimestamp(),
+              isTestMode: true,
+              testMode: true,
+              testModeResult: 'Simulated delayed success after 30 seconds'
+            });
+            
+            return res.status(200).json({
+              success: true,
+              status: 'paid',
+              reference,
+              message: 'Test payment completed after delay'
+            });
+          }
+        } else if (testBehavior === 'user-cancelled') {
+          // User cancelled after 30 seconds
+          if (secondsPassed >= 30) {
+            await updateDoc(paymentRef, {
+              status: 'cancelled',
+              updatedAt: serverTimestamp(),
+              isTestMode: true,
+              testMode: true,
+              testModeResult: 'Simulated user cancellation'
+            });
+            
+            return res.status(200).json({
+              success: false,
+              status: 'cancelled',
+              reference,
+              error: 'Payment was cancelled by user'
+            });
+          }
+        } else if (testBehavior === 'system-cancelled') {
+          // System cancelled after 30 seconds
+          if (secondsPassed >= 30) {
+            await updateDoc(paymentRef, {
+              status: 'cancelled',
+              updatedAt: serverTimestamp(),
+              isTestMode: true,
+              testMode: true,
+              testModeResult: 'Simulated system cancellation'
+            });
+            
+            return res.status(200).json({
+              success: false,
+              status: 'cancelled',
+              reference,
+              error: 'Payment was cancelled by the system'
+            });
+          }
+        }
+        
+        // If we're here, payment is still pending
+        return res.status(200).json({
+          success: true,
+          status: 'pending',
+          reference,
+          message: 'Test payment is still processing',
+          waitTime: secondsPassed
+        });
+      }
+      
+      // For non-test payments in development, just return pending
       return res.status(200).json({
         success: true,
-        status: newStatus,
+        status: 'pending',
         reference,
-        paid: newStatus === 'paid',
-        isTestMode: true,
-        testMode: true,
-        statusMessage
+        message: 'Payment status is pending'
       });
     }
-
-    // For production payments, check with Paynow
-    if (!pollUrl) {
-      return res.status(400).json({ error: 'Poll URL not found for this payment' });
-    }
-
-    // Create a new Paynow instance
-    const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
-    
-    // Check the payment status
-    const statusResponse = await paynow.pollTransaction(pollUrl);
-    console.log(`Paynow status response for ${paymentId}:`, statusResponse);
-    
-    let newStatus = status;
-    
-    if (statusResponse.paid) {
-      newStatus = 'paid';
-    } else if (statusResponse.status && statusResponse.status.toLowerCase() === 'cancelled') {
-      newStatus = 'cancelled';
-    } else if (statusResponse.status) {
-      newStatus = statusResponse.status.toLowerCase();
-    }
-    
-    // Update the payment record if the status has changed
-    if (newStatus !== status) {
-      await updateDoc(paymentRef, {
-        status: newStatus,
-        statusUpdatedAt: serverTimestamp(),
-        updatedByPolling: true,
-        statusMessage: statusResponse.error || 'Updated via polling'
-      });
-      
-      console.log(`Updated payment ${paymentId} with status: ${newStatus}`);
-    }
-    
-    return res.status(200).json({
-      success: true,
-      status: newStatus,
-      reference,
-      paid: newStatus === 'paid',
-      paynowStatus: statusResponse.status,
-      paynowPaid: statusResponse.paid,
-      isTestMode: false
-    });
   } catch (error) {
     console.error("Error checking payment status:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
-      error: error.message 
+      error: process.env.NODE_ENV === 'production' ? 'An error occurred while checking payment status' : error.message
     });
   }
 } 

@@ -20,18 +20,15 @@ export default async function handler(req, res) {
     const timestamp = Date.now();
     const reference = `ticket-${eventId}-${timestamp}`;
     
-    // Create a new Paynow instance
-    // ID: 20667, Integration Key: 83c8858d-2244-4f0f-accd-b64e9f877eaa
-    const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
+    // Create a new Paynow instance with integration credentials from environment variables
+    const integrationId = process.env.PAYNOW_INTEGRATION_ID || "20667";
+    const integrationKey = process.env.PAYNOW_INTEGRATION_KEY || "83c8858d-2244-4f0f-accd-b64e9f877eaa";
+    const paynow = new Paynow(integrationId, integrationKey);
     
-    // Enable test mode if specified
-    if (testMode === true) {
-      paynow.setResultUrl(`${process.env.NEXT_PUBLIC_SITE_URL}/api/paynow/update`);
-      paynow.setReturnUrl(`${process.env.NEXT_PUBLIC_SITE_URL}/events/${eventId}/checkout/status?reference=${reference}`);
-    } else {
-      paynow.setResultUrl(`${process.env.NEXT_PUBLIC_SITE_URL}/api/paynow/update`);
-      paynow.setReturnUrl(`${process.env.NEXT_PUBLIC_SITE_URL}/events/${eventId}/checkout/status?reference=${reference}`);
-    }
+    // Set the result and return URLs
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.headers.origin || "https://rsrvdtickets.com";
+    paynow.setResultUrl(`${siteUrl}/api/paynow/update`);
+    paynow.setReturnUrl(`${siteUrl}/events/${eventId}/checkout/status?reference=${reference}`);
     
     // Create a new payment
     let payment = paynow.createPayment(reference, email);
@@ -46,14 +43,17 @@ export default async function handler(req, res) {
     let isTestMode = false;
     let testConfig = null;
     
-    if (testMode === true) {
+    // Only enable test mode in development or if explicitly requested and allowed
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (!isProduction && testMode === true) {
       isTestMode = true;
       testConfig = {
         testBehavior: testBehavior || 'immediate-success', // Default to immediate-success
         initiatedAt: serverTimestamp()
       };
       
-      // Set the test mode properly
+      // Set the test mode properly in development
       paynow.setTestMode(true);
       
       // Add required test email for initiating payments in test mode
@@ -67,7 +67,7 @@ export default async function handler(req, res) {
       const normalizedPhone = normalizePhone(phone);
       const paymentMethod = determinePaymentMethod(normalizedPhone);
       
-      // Special test phone numbers documentation
+      // Special test phone numbers logic only applies in test mode
       let testPhoneNumber = normalizedPhone;
       let testBehaviorDescription = '';
       
@@ -75,7 +75,7 @@ export default async function handler(req, res) {
         // Keep track of the original phone number for reference
         testConfig.originalPhone = normalizedPhone;
         
-        // Paynow test mode phone numbers
+        // Paynow test mode phone numbers (only used in development)
         if (testBehavior === 'immediate-success' || testBehavior === 'quick-success') {
           testPhoneNumber = "0771111111"; // Quick success (5 seconds)
           testBehaviorDescription = 'immediate approval (5 seconds)';
@@ -119,6 +119,7 @@ export default async function handler(req, res) {
         paymentId: response.paymentId || null,
         instructions: response.instructions || null,
         isTestMode,
+        environment: process.env.NODE_ENV || 'development',
       };
       
       // Add test mode specific information if applicable
@@ -127,6 +128,9 @@ export default async function handler(req, res) {
         paymentData.testMode = testConfig;
         paymentData.initiated = serverTimestamp();
       }
+      
+      // Add a log entry with payment information
+      console.log(`Payment initiated: ${paymentId}, Reference: ${reference}, Amount: ${amount}, Test Mode: ${isTestMode}`);
       
       // Store in Firestore
       await setDoc(doc(db, "payments", paymentId), paymentData);

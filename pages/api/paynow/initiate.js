@@ -14,14 +14,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    // Create Paynow instance with provided integration details
-    const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
+    // Create Paynow instance with provided integration details from environment variables
+    const integrationId = process.env.PAYNOW_INTEGRATION_ID || "20667";
+    const integrationKey = process.env.PAYNOW_INTEGRATION_KEY || "83c8858d-2244-4f0f-accd-b64e9f877eaa";
+    const paynow = new Paynow(integrationId, integrationKey);
     
     // Generate a unique merchant reference for this payment
     const merchantReference = `ticket-${eventId}-${Date.now()}`;
     
     // Set return and result URLs
-    const baseUrl = req.headers.origin || process.env.NEXT_PUBLIC_BASE_URL || "https://rsrvdtickets.vercel.app";
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || req.headers.origin || "https://rsrvdtickets.com";
     
     // Result URL - where Paynow sends webhook callbacks
     paynow.resultUrl = `${baseUrl}/api/paynow/update`;
@@ -31,16 +33,26 @@ export default async function handler(req, res) {
     
     console.log(`Setting return URL: ${paynow.returnUrl}`);
     
-    // Important: For test mode, include the merchant email as authemail
-    // This allows test transactions to be completed as per Paynow docs
-    const merchantEmail = process.env.MERCHANT_EMAIL || "wesleytsakane116@gmail.com"; // Replace with your merchant email
+    // In production, use the actual customer email
+    // In development/test mode, include the merchant email for test transactions
+    const isProduction = process.env.NODE_ENV === 'production';
+    const merchantEmail = process.env.MERCHANT_EMAIL || "wesleytsakane116@gmail.com";
     
-    // Create payment with merchant reference and merchant email (for test mode)
-    // The second parameter is the authemail field required for test mode
-    const payment = paynow.createPayment(merchantReference, merchantEmail);
+    // Create payment with merchant reference and the appropriate email
+    // In production, use the customer's email
+    // In test mode, use the merchant email as required by Paynow
+    const payment = paynow.createPayment(
+      merchantReference, 
+      isProduction ? email : merchantEmail
+    );
     
     // Add ticket as item
     payment.add(`Ticket for ${eventTitle}`, parseFloat(amount));
+    
+    // Only enable test mode in development
+    if (!isProduction) {
+      paynow.setTestMode(true);
+    }
     
     // Send payment to Paynow
     console.log("Sending payment to Paynow...");
@@ -69,13 +81,17 @@ export default async function handler(req, res) {
         method: "paynow-web",
         paymentId,
         returnUrl: paynow.returnUrl,
-        merchantEmail: merchantEmail, // Store this for reference
-        isTestMode: true // Flag to indicate this is a test payment
+        merchantEmail: isProduction ? null : merchantEmail, // Only store in test mode
+        isTestMode: !isProduction, // Set based on environment
+        environment: process.env.NODE_ENV || 'development'
       });
       
       // Add payment ID to the response
       response.paymentId = paymentId;
       response.merchantReference = merchantReference;
+      
+      // Add a log entry with payment information
+      console.log(`Web payment initiated: ${paymentId}, Reference: ${merchantReference}, Amount: ${amount}, Environment: ${process.env.NODE_ENV}`);
     }
     
     // Directly pass through the Paynow response structure

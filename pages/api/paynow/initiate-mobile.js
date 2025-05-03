@@ -16,14 +16,16 @@ export default async function handler(req, res) {
 
     console.log(`Initiating mobile payment for phone: ${phoneNumber}, method: ${method}`);
     
-    // Create Paynow instance with provided integration details
-    const paynow = new Paynow("20667", "83c8858d-2244-4f0f-accd-b64e9f877eaa");
+    // Create Paynow instance with provided integration details from environment variables
+    const integrationId = process.env.PAYNOW_INTEGRATION_ID || "20667";
+    const integrationKey = process.env.PAYNOW_INTEGRATION_KEY || "83c8858d-2244-4f0f-accd-b64e9f877eaa";
+    const paynow = new Paynow(integrationId, integrationKey);
     
     // Generate a unique merchant reference for this payment
     const merchantReference = `ticket-${eventId}-${Date.now()}`;
     
     // Set return and result URLs
-    const baseUrl = req.headers.origin || process.env.NEXT_PUBLIC_BASE_URL || "https://rsrvdtickets.vercel.app";
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || req.headers.origin || "https://rsrvdtickets.com";
     
     // Result URL - where Paynow sends webhook callbacks
     paynow.resultUrl = `${baseUrl}/api/paynow/update`;
@@ -33,35 +35,44 @@ export default async function handler(req, res) {
     
     console.log(`Setting mobile return URL: ${paynow.returnUrl}`);
     
-    // Important: For test mode, include the merchant email as authemail
-    // This allows test transactions to be completed as per Paynow docs
-    const merchantEmail = process.env.MERCHANT_EMAIL || "wesleytsakane116@gmail.com"; // Replace with your merchant email
+    // Determine if we're in production mode
+    const isProduction = process.env.NODE_ENV === 'production';
     
-    // Check if this is a test mode phone number
+    // In test mode, use merchant email; in production, use customer email
+    const merchantEmail = process.env.MERCHANT_EMAIL || "wesleytsakane116@gmail.com";
+    
+    // Check if this is a test mode phone number - only applies in development
     let isTestNumber = false;
     let expectedBehavior = "";
     
-    if (phoneNumber === "0771111111") {
-      isTestNumber = true;
-      expectedBehavior = "SUCCESS - immediate approval (5 seconds)";
-    } else if (phoneNumber === "0772222222") {
-      isTestNumber = true;
-      expectedBehavior = "DELAYED SUCCESS - approval after 30 seconds";
-    } else if (phoneNumber === "0773333333") {
-      isTestNumber = true;
-      expectedBehavior = "FAILED - user cancelled after 30 seconds";
-    } else if (phoneNumber === "0774444444") {
-      isTestNumber = true;
-      expectedBehavior = "FAILED - immediate insufficient balance error";
+    if (!isProduction) {
+      if (phoneNumber === "0771111111") {
+        isTestNumber = true;
+        expectedBehavior = "SUCCESS - immediate approval (5 seconds)";
+      } else if (phoneNumber === "0772222222") {
+        isTestNumber = true;
+        expectedBehavior = "DELAYED SUCCESS - approval after 30 seconds";
+      } else if (phoneNumber === "0773333333") {
+        isTestNumber = true;
+        expectedBehavior = "FAILED - user cancelled after 30 seconds";
+      } else if (phoneNumber === "0774444444") {
+        isTestNumber = true;
+        expectedBehavior = "FAILED - immediate insufficient balance error";
+      }
+      
+      if (isTestNumber) {
+        console.log(`TEST MODE: Using test phone number ${phoneNumber}. Expected behavior: ${expectedBehavior}`);
+        
+        // Enable test mode for development environment
+        paynow.setTestMode(true);
+      }
     }
     
-    if (isTestNumber) {
-      console.log(`TEST MODE: Using test phone number ${phoneNumber}. Expected behavior: ${expectedBehavior}`);
-    }
-    
-    // Create payment with merchant reference and merchant email (for test mode)
-    // The second parameter is the authemail field required for test mode
-    const payment = paynow.createPayment(merchantReference, merchantEmail);
+    // Create payment with merchant reference and appropriate email
+    const payment = paynow.createPayment(
+      merchantReference, 
+      isProduction ? email : merchantEmail
+    );
     
     // Add ticket as item
     payment.add(`Ticket for ${eventTitle}`, parseFloat(amount));
@@ -79,7 +90,8 @@ export default async function handler(req, res) {
       
       // Save payment information to the database
       const paymentRef = doc(db, "payments", paymentId);
-      await setDoc(paymentRef, {
+      
+      const paymentData = {
         eventId,
         eventTitle,
         email,
@@ -95,20 +107,26 @@ export default async function handler(req, res) {
         method: "paynow-mobile",
         paymentId,
         returnUrl: paynow.returnUrl,
-        merchantEmail: merchantEmail, // Store this for reference
-        isTestMode: isTestNumber, // Flag to indicate if this is a test phone number
-        testBehavior: isTestNumber ? expectedBehavior : null
-      });
+        merchantEmail: isProduction ? null : merchantEmail, // Only store in test mode
+        isTestMode: isTestNumber && !isProduction, // Only true for test phone numbers in dev
+        testBehavior: (isTestNumber && !isProduction) ? expectedBehavior : null,
+        environment: process.env.NODE_ENV || 'development'
+      };
+      
+      await setDoc(paymentRef, paymentData);
       
       // Add payment ID to the response
       response.paymentId = paymentId;
       response.merchantReference = merchantReference;
       
       // For test mode, add additional info to help with debugging
-      if (isTestNumber) {
+      if (isTestNumber && !isProduction) {
         response.isTestNumber = true;
         response.testBehavior = expectedBehavior;
       }
+      
+      // Add a log entry with payment information
+      console.log(`Mobile payment initiated: ${paymentId}, Reference: ${merchantReference}, Phone: ${phoneNumber}, Method: ${method}, Amount: ${amount}, Environment: ${process.env.NODE_ENV}`);
     }
     
     // Directly pass through the Paynow response structure

@@ -1,150 +1,137 @@
 import { db } from '../../../utils/firebase';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { validatePaynowSignature } from '../../../utils/security';
 import { paymentRateLimiter } from '../../../middleware/rateLimit';
 
 /**
  * Handles callbacks from Paynow for payment status updates
+ * This endpoint is called by Paynow to update the status of a payment
  */
-const handler = async (req, res) => {
-  // Only allow POST requests
+export default async function handler(req, res) {
+  // Accept only POST requests
   if (req.method !== 'POST') {
-    return res.status(405).json({ 
-      success: false, 
-      message: 'Method not allowed' 
-    });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
   
+  let paymentReference = null;
+  
   try {
-    // Log the full callback data for debugging
+    // Paynow sends updates as form data in the request body
     console.log('Paynow callback received:', JSON.stringify(req.body));
     
-    // Check if we're in test mode (no hash verification for test mode)
-    const isTestMode = req.body.status === 'paid' && 
-                      req.body.status_message && 
-                      req.body.status_message.includes('TESTING');
+    // Check if this appears to be a test mode confirmation
+    const isTestMode = req.body.status === 'paid' &&
+                       (req.body.test === 'true' || req.body.test === true);
     
-    // Extract payment details from callback
-    const { 
-      reference, 
-      paynow_reference, 
-      amount, 
-      status, 
-      poll_url,
-      hash,
-      phone
-    } = req.body;
+    // Extract the reference from the request body
+    const { reference, poll_url, hash } = req.body;
     
-    // Validate required fields
-    if (!reference || !status) {
-      console.error('Missing required fields in Paynow callback');
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Missing required fields' 
-      });
+    if (!reference) {
+      return res.status(400).json({ error: 'Missing reference' });
     }
     
-    // Verify the signature if not in test mode
-    if (!isTestMode && hash) {
-      const isValidHash = validatePaynowSignature(
-        req.body, 
-        hash, 
-        process.env.PAYNOW_INTEGRATION_KEY
-      );
-      
-      if (!isValidHash) {
-        console.error("Invalid hash in Paynow update callback");
-        return res.status(403).json({ 
-          success: false, 
-          message: 'Invalid signature' 
-        });
-      }
+    paymentReference = reference;
+    
+    // Get the payment record from Firestore
+    let paymentQuerySnapshot = await db.collection("payments")
+                                      .where("reference", "==", reference)
+                                      .limit(1)
+                                      .get();
+    
+    if (paymentQuerySnapshot.empty) {
+      return res.status(404).json({ error: `Payment not found with reference: ${reference}` });
     }
     
-    // Find the payment in our database
-    const paymentsRef = collection(db, 'payments');
-    const q = query(paymentsRef, where('reference', '==', reference));
-    const paymentQuery = await getDocs(q);
-    
-    if (paymentQuery.empty) {
-      console.error(`Payment with reference ${reference} not found`);
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Payment not found' 
-      });
-    }
-    
-    const paymentDoc = paymentQuery.docs[0];
+    const paymentDoc = paymentQuerySnapshot.docs[0];
+    const paymentId = paymentDoc.id;
     const paymentData = paymentDoc.data();
     
-    // Log payment status update
-    console.log(`Updating payment ${reference} status from ${paymentData.status} to ${status}`);
+    // Validate hash signature in production or when hash is provided
+    const isProduction = process.env.NODE_ENV === 'production';
+    const hashProvided = !!hash;
     
-    // Update the payment status
+    if ((isProduction || hashProvided) && !isTestMode) {
+      // Hash validation is mandatory in production or when hash is provided
+      if (!hash) {
+        console.error(`Missing hash parameter for reference: ${reference}`);
+        return res.status(400).json({ error: 'Missing hash parameter for verification' });
+      }
+      
+      // Get the integration key from environment variables
+      const integrationKey = process.env.PAYNOW_INTEGRATION_KEY;
+      
+      if (!integrationKey) {
+        console.error('Missing Paynow integration key in environment variables');
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
+      
+      // Validate the hash signature
+      const isValid = validatePaynowSignature(req.body, hash, integrationKey);
+      if (!isValid) {
+        console.error(`Invalid hash signature for reference: ${reference}`);
+        return res.status(403).json({ error: 'Invalid signature' });
+      }
+      
+      console.log(`Hash signature verified for reference: ${reference}`);
+    } else if (!isTestMode) {
+      // In non-production environments without hash, log a warning
+      console.warn(`No hash validation performed for reference: ${reference} - non-production environment`);
+    }
+    
+    // Determine the new status based on Paynow's response
+    const newStatus = req.body.status === 'paid' ? 'paid' : 
+                    req.body.status === 'cancelled' ? 'cancelled' : 
+                    req.body.status === 'awaiting delivery' ? 'waiting_delivery' : 
+                    req.body.status === 'delivered' ? 'delivered' : 'pending';
+    
+    // Update data to be saved
     const updateData = {
-      status,
-      updatedAt: new Date().toISOString()
+      status: newStatus,
+      updatedAt: serverTimestamp(),
+      statusReason: req.body.status_reason || null,
+      paynowReference: req.body.paynow_reference || null,
+      lastResponse: req.body,
     };
     
-    // Add additional fields if they exist
-    if (paynow_reference) updateData.paynowReference = paynow_reference;
-    if (amount) updateData.confirmedAmount = parseFloat(amount);
-    if (poll_url) updateData.pollUrl = poll_url;
-    if (phone) updateData.phone = phone;
-    
-    // Add test mode flag if applicable
+    // In test mode, mark as test payment
     if (isTestMode) {
       updateData.isTestMode = true;
-      updateData.testDetails = {
-        originalStatus: status,
-        testMessage: req.body.status_message || 'Test payment'
-      };
+      updateData.testModeConfirmed = true;
     }
     
-    // Update the payment in Firestore
-    await updateDoc(doc(db, 'payments', paymentDoc.id), updateData);
+    // Update the payment record in Firestore
+    const paymentRef = doc(db, "payments", paymentId);
+    await updateDoc(paymentRef, updateData);
     
-    // If payment is successful, trigger attendee registration
-    if (status === 'paid' || 
-        (isTestMode && req.body.status_message && 
-         req.body.status_message.includes('Success'))) {
-      
-      try {
-        // We don't wait for this to complete
-        fetch(`${req.headers.origin || process.env.NEXT_PUBLIC_BASE_URL}/api/fix-payment`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': process.env.INTERNAL_API_KEY
-          },
-          body: JSON.stringify({
-            reference,
-            markAsPaid: true
-          })
-        }).catch(err => {
-          console.error('Error triggering attendee registration:', err);
-        });
-      } catch (err) {
-        console.error('Error initiating registration webhook:', err);
-      }
+    // If there's a status message from Paynow, log it
+    if ((isTestMode && req.body.status_message) ||
+        req.body.status_reason) {
+      console.log(`Status update for ${reference}: ${req.body.status}, Reason: ${req.body.status_reason || req.body.status_message}`);
     }
     
-    // Return success response to Paynow
-    return res.status(200).json({
-      success: true,
-      message: 'Payment update received'
+    // Log the status update
+    console.log(`Payment ${paymentId} updated to status: ${newStatus}`);
+    
+    // Return success response
+    return res.status(200).json({ 
+      success: true, 
+      message: `Payment status updated to ${newStatus}` 
     });
     
   } catch (error) {
-    console.error('Error processing Paynow callback:', error);
+    console.error(`Error updating payment ${paymentReference}:`, error);
     
-    // Return error response
-    return res.status(500).json({
-      success: false,
-      message: 'Error processing payment update'
+    // In production, don't expose error details
+    const errorMessage = process.env.NODE_ENV === 'production' ? 
+                         'An error occurred processing the payment update' : 
+                         error.message;
+    
+    return res.status(500).json({ 
+      success: false, 
+      error: errorMessage 
     });
   }
-};
+}
 
 // Apply rate limiter to prevent abuse
 export default paymentRateLimiter(handler); 
